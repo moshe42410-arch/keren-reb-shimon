@@ -39,8 +39,8 @@ const ReportsPage = () => {
 
   useEffect(() => {
     const loadFunds = () => {
-      const existingFunds = getAllFundsWithLabels()
-      setFunds(existingFunds)
+    const existingFunds = getAllFundsWithLabels()
+    setFunds(existingFunds)
     }
     
     loadFunds()
@@ -157,8 +157,8 @@ const ReportsPage = () => {
       
       if (dataItems.length === 0) {
         setError('לא נמצאו נתונים בטווח התאריכים')
-        return
-      }
+      return
+    }
 
       // טעינת קטגוריות מ-Google Sheets
       let categoriesData = null
@@ -230,9 +230,9 @@ const ReportsPage = () => {
       
       if (reportRows.length === 0) {
         setError('לא נמצאו נתונים התואמים לסינונים שנבחרו')
-        return
-      }
-      
+      return
+    }
+
       // יצירת שם קובץ
       const dateStr = new Date().toISOString().split('T')[0]
       let fileName = ''
@@ -318,14 +318,14 @@ const ReportsPage = () => {
             </FormControl>
           </Grid>
 
-          {dateRange === 'custom' && (
-            <>
+            {dateRange === 'custom' && (
+              <>
               <Grid item xs={12} sm={6} md={2}>
                 <TextField
                   label="תאריך התחלה"
-                  type="date"
-                  value={startDate ? startDate.toISOString().split('T')[0] : ''}
-                  onChange={(e) => setStartDate(new Date(e.target.value))}
+                    type="date"
+                    value={startDate ? startDate.toISOString().split('T')[0] : ''}
+                    onChange={(e) => setStartDate(new Date(e.target.value))}
                   InputLabelProps={{ shrink: true }}
                   fullWidth
                   sx={{
@@ -341,14 +341,14 @@ const ReportsPage = () => {
                       },
                     },
                   }}
-                />
+                  />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
                 <TextField
                   label="תאריך סיום"
-                  type="date"
-                  value={endDate ? endDate.toISOString().split('T')[0] : ''}
-                  onChange={(e) => setEndDate(new Date(e.target.value))}
+                    type="date"
+                    value={endDate ? endDate.toISOString().split('T')[0] : ''}
+                    onChange={(e) => setEndDate(new Date(e.target.value))}
                   InputLabelProps={{ shrink: true }}
                   fullWidth
                   sx={{
@@ -364,10 +364,10 @@ const ReportsPage = () => {
                       },
                     },
                   }}
-                />
+                  />
               </Grid>
-            </>
-          )}
+              </>
+            )}
 
           <Grid item xs={12} sm={6} md={2}>
             <FormControl fullWidth>
@@ -495,7 +495,7 @@ const ReportsPage = () => {
           <Grid item xs={12} sm={6} md={dateRange === 'custom' ? 2 : 3}>
             <Button
               variant="contained"
-              onClick={handleDownload}
+            onClick={handleDownload}
               fullWidth
               sx={{
                 background: 'white',
@@ -511,7 +511,7 @@ const ReportsPage = () => {
                 transition: 'all 0.3s ease',
               }}
             >
-              הורד Excel
+            הורד Excel
             </Button>
           </Grid>
         </Grid>

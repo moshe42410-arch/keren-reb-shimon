@@ -2,6 +2,7 @@
 
 import { getDataByDateRange } from './storageService'
 import { fetchAllCategoriesData } from './googleSheets'
+import { normalizeIdentifier } from '../utils/maorotUtils'
 
 /**
  * בודק אם סוג תנועה הוא תרומה
@@ -59,13 +60,14 @@ export const findAllMatchingCategories = (categoriesData, idNumber, date, amount
   const AMOUNT_COL_INDEX = 10 // K - סכום בגוגל שיטס
   const CATEGORY_COL_INDEX = 12 // M - קטגוריה בגוגל שיטס
   
-  const normalizedIdNumber = String(idNumber).trim().replace(/[\s-]/g, '')
+  const { normalizeIdentifier } = require('../utils/maorotUtils')
+  const normalizedIdNumber = normalizeIdentifier(idNumber)
   
   for (let i = 1; i < categoriesData.length; i++) {
     const row = categoriesData[i]
     if (!row || row.length === 0) continue
     
-    const rowId = String(row[ID_COL_INDEX] || '').trim().replace(/[\s-]/g, '')
+    const rowId = normalizeIdentifier(row[ID_COL_INDEX])
     if (!rowId) continue
     
     const idMatches = normalizedIdNumber && rowId && 

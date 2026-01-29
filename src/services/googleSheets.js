@@ -1,5 +1,7 @@
 // שירות לעבודה עם Google Sheets API
 
+import { normalizeIdentifier } from '../utils/maorotUtils'
+
 const API_KEY = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY || ''
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
 const GOOGLE_APPS_SCRIPT_URL = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL || ''
@@ -399,8 +401,9 @@ export const findCategoryInData = (categoriesData, idNumber, date, amount) => {
       category: CATEGORY_COL_INDEX
     })
     
-    // מנרמל את מספר הזהות לחיפוש
-    const normalizedIdNumber = String(idNumber).trim().replace(/[\s-]/g, '')
+    // מנרמל את מספר הזהות לחיפוש - משתמש ב-normalizeIdentifier להסרת אפסים מובילים
+    const { normalizeIdentifier } = require('../utils/maorotUtils')
+    const normalizedIdNumber = normalizeIdentifier(idNumber)
     
     // מחפש התאמה בנתונים המקומיים
     for (let i = 1; i < categoriesData.length; i++) {
@@ -408,7 +411,7 @@ export const findCategoryInData = (categoriesData, idNumber, date, amount) => {
       if (!row || row.length === 0) continue
       
       // מ.ז בעמודה E (index 4)
-      const rowId = String(row[ID_COL_INDEX] || '').trim().replace(/[\s-]/g, '')
+      const rowId = normalizeIdentifier(row[ID_COL_INDEX])
       
       if (!rowId) continue
       

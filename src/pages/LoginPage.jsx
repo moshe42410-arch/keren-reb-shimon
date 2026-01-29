@@ -46,6 +46,11 @@ const LoginPage = () => {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
           יש להתחבר עם שם משתמש וסיסמה כדי להמשיך
         </Typography>
+        <Alert severity="info" sx={{ mb: 2, fontSize: '0.875rem' }}>
+          <strong>פרטי התחברות ברירת מחדל:</strong><br />
+          שם משתמש: <strong>admin</strong><br />
+          סיסמה: <strong>admin123</strong>
+        </Alert>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}

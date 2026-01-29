@@ -9,7 +9,9 @@ import {
   formatDateInput,
   findColumnIndex,
   buildSupportEntryFromRow,
+  normalizeIdentifier,
 } from '../../utils/maorotUtils'
+import { useAuth } from '../../context/AuthContext'
 
 const statusOptions = ['פעיל', 'הפסקה', 'השהיה']
 const supportTypeOptions = ['חד-פעמית', 'קבועה', 'קבועה לתקופה']
@@ -35,11 +37,40 @@ const SupportsManagementTab = ({
   const [showSupportForm, setShowSupportForm] = useState(false)
   const [supportFormValues, setSupportFormValues] = useState({})
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false)
+  const [showNoCategoryFilter, setShowNoCategoryFilter] = useState(false)
+  const [showNoFrameFilter, setShowNoFrameFilter] = useState(false)
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [pendingUpdate, setPendingUpdate] = useState(null)
+  const { currentUser } = useAuth()
+  const isAdmin = currentUser && currentUser.role === 'admin'
   const topScrollRef = useRef(null)
   const tableScrollRef = useRef(null)
   const tableRef = useRef(null)
 
-  const tableHeaders = draftHeaders.length > 0 ? draftHeaders : supportsHeaders || []
+  // כותרות קבועות לפי הפורמט הסטנדרטי של קובץ מפורט
+  const defaultHeaders = [
+    'מ.ז',
+    "מס' ספק כולל",
+    "מס' ספק מאורות",
+    'שם',
+    "מס' בנק",
+    "מס' סניף",
+    "מס' חשבון",
+    'סוג תמיכה',
+    'מספר חודשים',
+    'מועד סיום',
+    'סטטוס',
+    'קטגוריה',
+    'מסגרת',
+    'סכום',
+    'הערות',
+  ]
+
+  const tableHeaders = draftHeaders.length > 0 
+    ? draftHeaders 
+    : supportsHeaders && supportsHeaders.length > 0 
+      ? supportsHeaders 
+      : defaultHeaders
   const tableSupports = draftSupports ?? supports
   const columnMapping = draftHeaders.length > 0 ? draftColumnMapping : supportsColumnMapping || {}
   const effectiveMapping = {
@@ -49,7 +80,7 @@ const SupportsManagementTab = ({
     endDateIndex: columnMapping.endDateIndex ?? 8,
   }
 
-  const normalizeId = (value) => normalizeString(value).replace(/\D/g, '')
+  const normalizeId = normalizeIdentifier
 
   const directoryLookup = useMemo(() => {
     return (directoryEntries || []).reduce((acc, entry) => {
@@ -67,7 +98,7 @@ const SupportsManagementTab = ({
     return directoryLookup[rawId] || directoryLookup[digitId] || null
   }
 
-  const formHeaders = tableHeaders
+  const formHeaders = tableHeaders.length > 0 ? tableHeaders : defaultHeaders
   const formHeaderKeys = useMemo(() => {
     return formHeaders.map((header, index) => normalizeString(header) || `עמודה ${index + 1}`)
   }, [formHeaders])
@@ -119,7 +150,7 @@ const SupportsManagementTab = ({
 
   const filteredSupports = useMemo(() => {
     const sourceSupports = draftSupports ?? supports
-    const baseSupports = showDuplicatesOnly
+    let baseSupports = showDuplicatesOnly
       ? (() => {
           const counts = sourceSupports.reduce((acc, support) => {
             const key = normalizeId(support.idNumber)
@@ -133,6 +164,23 @@ const SupportsManagementTab = ({
           })
         })()
       : sourceSupports
+
+    // סינון תמיכות ללא קטגוריה
+    if (showNoCategoryFilter) {
+      baseSupports = baseSupports.filter((support) => {
+        const categoryValue = getRowValue(support, directoryColumnMapping.categoryIndex)
+        return !categoryValue || normalizeString(categoryValue) === '' || normalizeString(categoryValue) === '-'
+      })
+    }
+
+    // סינון תמיכות ללא מסגרת
+    if (showNoFrameFilter) {
+      baseSupports = baseSupports.filter((support) => {
+        const frameValue = getRowValue(support, directoryColumnMapping.frameIndex)
+        return !frameValue || normalizeString(frameValue) === '' || normalizeString(frameValue) === '-'
+      })
+    }
+
     if (!searchTerm) return baseSupports
     const query = normalizeString(searchTerm).toLowerCase()
     return baseSupports.filter((support) => {
@@ -156,7 +204,7 @@ const SupportsManagementTab = ({
         .map((value) => normalizeString(value).toLowerCase())
         .some((value) => value.includes(query))
     })
-  }, [supports, draftSupports, searchTerm, directoryLookup, showDuplicatesOnly])
+  }, [supports, draftSupports, searchTerm, directoryLookup, showDuplicatesOnly, showNoCategoryFilter, showNoFrameFilter, directoryColumnMapping])
 
   const directoryColumnMapping = useMemo(() => {
     if (!tableHeaders || tableHeaders.length === 0) {
@@ -248,11 +296,12 @@ const SupportsManagementTab = ({
     : null
 
   const displayHeaders = useMemo(() => {
-    if (!tableHeaders || tableHeaders.length === 0) return []
+    const headersToUse = tableHeaders && tableHeaders.length > 0 ? tableHeaders : defaultHeaders
+    if (!headersToUse || headersToUse.length === 0) return []
     const filtered =
       statusColumnIndex === null
-        ? tableHeaders
-        : tableHeaders.filter((_, idx) => idx !== statusColumnIndex)
+        ? headersToUse
+        : headersToUse.filter((_, idx) => idx !== statusColumnIndex)
     return [...filtered, 'סטטוס']
   }, [tableHeaders, statusColumnIndex])
 
@@ -263,6 +312,12 @@ const SupportsManagementTab = ({
     setLoading(true)
     try {
       const { rawData } = await readSpreadsheetFile(file)
+      if (!rawData || rawData.length === 0) {
+        setError('הקובץ ריק או לא ניתן לקרוא אותו.')
+        setLoading(false)
+        event.target.value = ''
+        return
+      }
       const { entries, headers, columnMapping: mapping } = parseSupportRows(rawData)
       if (mode === 'append') {
         const existingHeaders = tableHeaders || []
@@ -326,6 +381,19 @@ const SupportsManagementTab = ({
 
   const updateSupportCell = (id, colIndex, value, updates = {}) => {
     const sourceSupports = draftSupports ?? supports
+    const support = sourceSupports.find((s) => s.id === id)
+    if (!support) return
+
+    // שמירת העדכון הממתין לאישור
+    setPendingUpdate({ id, colIndex, value, updates, support })
+    setConfirmDialogOpen(true)
+  }
+
+  const handleConfirmUpdate = () => {
+    if (!pendingUpdate) return
+
+    const { id, colIndex, value, updates } = pendingUpdate
+    const sourceSupports = draftSupports ?? supports
     const nextSupports = sourceSupports.map((support) => {
       if (support.id !== id) return support
       const nextRawRow = Array.isArray(support.rawRow) ? [...support.rawRow] : []
@@ -336,6 +404,49 @@ const SupportsManagementTab = ({
         rawRow: nextRawRow,
       }
     })
+    if (draftSupports) {
+      setDraftSupports(nextSupports)
+    } else {
+      onSupportsChange(nextSupports)
+    }
+
+    setConfirmDialogOpen(false)
+    setPendingUpdate(null)
+  }
+
+  const handleCancelUpdate = () => {
+    setConfirmDialogOpen(false)
+    setPendingUpdate(null)
+  }
+
+  const handleApproveSupport = (supportId) => {
+    const sourceSupports = draftSupports ?? supports
+    const nextSupports = sourceSupports.map((support) => {
+      if (support.id !== supportId) return support
+      const nextRawRow = Array.isArray(support.rawRow) ? [...support.rawRow] : []
+      // מסיר את הקטגוריה "ממתין לאישור" ומשאיר את הקטגוריה המקורית או ריק
+      if (directoryColumnMapping.categoryIndex !== null) {
+        const currentCategory = getRowValue(support, directoryColumnMapping.categoryIndex)
+        if (normalizeString(currentCategory) === 'ממתין לאישור') {
+          nextRawRow[directoryColumnMapping.categoryIndex] = ''
+        }
+      }
+      return {
+        ...support,
+        pendingApproval: false,
+        rawRow: nextRawRow,
+      }
+    })
+    if (draftSupports) {
+      setDraftSupports(nextSupports)
+    } else {
+      onSupportsChange(nextSupports)
+    }
+  }
+
+  const handleRejectSupport = (supportId) => {
+    const sourceSupports = draftSupports ?? supports
+    const nextSupports = sourceSupports.filter((support) => support.id !== supportId)
     if (draftSupports) {
       setDraftSupports(nextSupports)
     } else {
@@ -397,10 +508,6 @@ const SupportsManagementTab = ({
   }
 
   const handleToggleSupportForm = () => {
-    if (!formHeaders || formHeaders.length === 0) {
-      setError('יש לטעון קובץ מפורט לפני הוספת תמיכה ידנית.')
-      return
-    }
     setShowSupportForm((prev) => !prev)
     if (!showSupportForm) {
       const initialValues = formHeaderKeys.reduce((acc, key) => {
@@ -444,10 +551,6 @@ const SupportsManagementTab = ({
   }
 
   const handleSupportFormSubmit = () => {
-    if (!formHeaders || formHeaders.length === 0) {
-      setError('יש לטעון קובץ מפורט לפני הוספת תמיכה ידנית.')
-      return
-    }
     const row = formHeaders.map((_, index) => supportFormValues[formHeaderKeys[index]] || '')
     const entry = buildSupportEntryFromRow(formHeaders, row, columnMapping)
     const entryWithDefaults = {
@@ -461,6 +564,15 @@ const SupportsManagementTab = ({
       setDraftSupports(nextSupports)
     } else {
       onSupportsChange(nextSupports)
+    }
+
+    // אם אין כותרות שמורות, שומרים את הכותרות הקבועות
+    if (!supportsHeaders || supportsHeaders.length === 0) {
+      onSupportsSave?.({
+        entries: nextSupports,
+        headers: formHeaders,
+        columnMapping: columnMapping,
+      })
     }
 
     setShowSupportForm(false)
@@ -572,10 +684,42 @@ const SupportsManagementTab = ({
           </button>
           <button
             type="button"
+            onClick={() => setShowNoCategoryFilter((prev) => !prev)}
+            className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+              showNoCategoryFilter
+                ? 'bg-orange-600 text-white hover:bg-orange-700'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {showNoCategoryFilter ? 'הצג את כל התמיכות' : 'תמיכות ללא קטגוריה'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowNoFrameFilter((prev) => !prev)}
+            className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+              showNoFrameFilter
+                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {showNoFrameFilter ? 'הצג את כל התמיכות' : 'תמיכות ללא מסגרת'}
+          </button>
+          <button
+            type="button"
             onClick={handleToggleSupportForm}
             className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors"
           >
             {showSupportForm ? 'סגור טופס תמיכה' : 'הוספת תמיכה ידנית'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const url = `${window.location.origin}/support-form`
+              window.open(url, '_blank', 'noopener,noreferrer')
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+          >
+            קישור לטופס חיצוני
           </button>
         </div>
         {showSupportForm && (
@@ -627,9 +771,10 @@ const SupportsManagementTab = ({
           <div style={{ width: scrollWidth, height: 1 }} />
         </div>
         <div
-          className="mt-4 max-h-[60vh] overflow-x-auto overflow-y-auto"
+          className="mt-4 max-h-[60vh] overflow-x-auto overflow-y-auto w-full"
           ref={tableScrollRef}
           dir="ltr"
+          style={{ maxWidth: '100%', width: '100%' }}
         >
           <table
             ref={tableRef}
@@ -649,18 +794,32 @@ const SupportsManagementTab = ({
                   />
                 </th>
                 {displayHeaders.length > 0 ? (
-                  displayHeaders.map((header, index) => (
-                    <th
-                      key={`${header}-${index}`}
-                      className="px-3 py-2 text-right sticky top-0 z-20 bg-white"
-                    >
-                      {normalizeString(header) || `עמודה ${index + 1}`}
-                    </th>
-                  ))
+                  <>
+                    {displayHeaders.map((header, index) => (
+                      <th
+                        key={`${header}-${index}`}
+                        className="px-3 py-2 text-right sticky top-0 z-20 bg-white"
+                      >
+                        {normalizeString(header) || `עמודה ${index + 1}`}
+                      </th>
+                    ))}
+                    {isAdmin && (
+                      <th className="px-3 py-2 text-right sticky top-0 z-20 bg-white">
+                        פעולות
+                      </th>
+                    )}
+                  </>
                 ) : (
-                  <th className="px-3 py-2 text-right sticky top-0 z-20 bg-white">
-                    אין כותרות להצגה
-                  </th>
+                  <>
+                    <th className="px-3 py-2 text-right sticky top-0 z-20 bg-white">
+                      אין כותרות להצגה
+                    </th>
+                    {isAdmin && (
+                      <th className="px-3 py-2 text-right sticky top-0 z-20 bg-white">
+                        פעולות
+                      </th>
+                    )}
+                  </>
                 )}
               </tr>
             </thead>
@@ -668,7 +827,7 @@ const SupportsManagementTab = ({
               {filteredSupports.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={Math.max(displayHeaders.length + 1, 1)}
+                    colSpan={Math.max(displayHeaders.length + 1 + (isAdmin ? 1 : 0), 1)}
                     className="px-3 py-6 text-center text-gray-500"
                   >
                     אין נתונים להצגה.
@@ -784,17 +943,20 @@ const SupportsManagementTab = ({
                         return (
                           <td key={colIndex} className="px-3 py-2">
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="numeric"
                               value={normalizeString(rawValue)}
-                              onChange={(event) =>
+                              onChange={(event) => {
+                                const value = event.target.value.replace(/[^\d.]/g, '')
                                 updateSupportCell(
                                   support.id,
                                   colIndex,
-                                  event.target.value,
-                                  { amount: event.target.value }
+                                  value,
+                                  { amount: value }
                                 )
-                              }
+                              }}
                               className="w-24 rounded-md border border-gray-300 px-2 py-1 text-xs"
+                              placeholder="סכום"
                             />
                           </td>
                         )
@@ -824,6 +986,30 @@ const SupportsManagementTab = ({
                         </td>
                       )
                     })}
+                    {isAdmin && (
+                      <td key="actions" className="px-3 py-2">
+                        {support.pendingApproval && (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleApproveSupport(support.id)}
+                              className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
+                              title="אשר תמיכה"
+                            >
+                              ✓ אישור
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRejectSupport(support.id)}
+                              className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
+                              title="דחה תמיכה"
+                            >
+                              ✗ דחייה
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -831,6 +1017,34 @@ const SupportsManagementTab = ({
             </table>
         </div>
       </div>
+
+      {/* דיאלוג אישור שינוי */}
+      {confirmDialogOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">אישור שינוי</h3>
+            <p className="text-gray-700 mb-6">
+              האם אתה בטוח שברצונך לשמור את השינויים בשורה זו?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={handleCancelUpdate}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors"
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmUpdate}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+              >
+                אישור ושמירה
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

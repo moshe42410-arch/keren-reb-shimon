@@ -467,7 +467,7 @@ const SummariesTab = () => {
                         <Box sx={{ mt: 2 }}>
                           <Typography variant="body2" gutterBottom sx={{ fontWeight: 600 }}>
                             תמיכות לפי קטגוריות:
-                          </Typography>
+          </Typography>
                           <TableContainer>
                             <Table size="small">
                               <TableHead>
@@ -502,7 +502,7 @@ const SummariesTab = () => {
             <Paper elevation={3} sx={{ p: 3, mb: 3, background: '#ffffff' }}>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: '#2e7d32' }}>
                 סיכום לפי קטגוריה (כל הקטגוריות)
-              </Typography>
+          </Typography>
               <TableContainer>
                 <Table>
                   <TableHead>
@@ -523,8 +523,8 @@ const SummariesTab = () => {
                   </TableBody>
                 </Table>
               </TableContainer>
-            </Paper>
-          )}
+        </Paper>
+      )}
         </Box>
       )}
 

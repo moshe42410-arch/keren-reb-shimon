@@ -69,6 +69,8 @@ const UploadPage = () => {
   }
 
   const handleFileChange = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
     const selectedFile = e.target.files[0]
     if (selectedFile) {
       setFile(selectedFile)
@@ -81,6 +83,13 @@ const UploadPage = () => {
       setSyncResults(null)
       setShowSyncResults(false)
     }
+    // איפוס הערך כדי לאפשר בחירה של אותו קובץ שוב
+    // משתמש ב-setTimeout כדי למנוע קפיצה לאקסל
+    setTimeout(() => {
+      if (e.target) {
+        e.target.value = ''
+      }
+    }, 100)
   }
 
   const processAndSync = async (parsed, processed, fundName, monthKey) => {
@@ -398,6 +407,16 @@ const UploadPage = () => {
                     className="sr-only"
                     accept=".xlsx,.xls"
                     onChange={handleFileChange}
+                    onClick={(e) => {
+                      // מונע מהדפדפן לקפוץ לאקסל
+                      e.stopPropagation()
+                      // מונע התנהגות ברירת מחדל שעלולה לגרום לקפיצה
+                      e.preventDefault()
+                    }}
+                    onFocus={(e) => {
+                      // מונע מהדפדפן לקפוץ לאקסל בעת פוקוס
+                      e.stopPropagation()
+                    }}
                   />
                 </label>
                 <p className="pr-1">או גרור ושחרר</p>

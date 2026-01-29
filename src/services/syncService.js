@@ -10,8 +10,8 @@
  * @returns {string} מזהה ייחודי
  */
 export const createUniqueKey = (idNumber, amount, month, fund) => {
-  // מנרמל את הערכים
-  const normalizedId = String(idNumber || '').trim().replace(/[\s-]/g, '')
+  // מנרמל את הערכים - משתמש ב-normalizeIdentifier להסרת אפסים מובילים
+  const normalizedId = normalizeIdentifier(idNumber)
   const normalizedAmount = parseFloat(amount || 0).toFixed(2)
   const normalizedMonth = String(month || '').trim()
   const normalizedFund = String(fund || '').trim()
@@ -136,7 +136,7 @@ export const syncData = (excelData, googleSheetsData, fund, month) => {
     const row = googleSheetsData[i]
     if (!row || row.length === 0) continue
     
-    const gsId = String(row[GS_ID_COL] || '').trim().replace(/[\s-]/g, '')
+    const gsId = normalizeIdentifier(row[GS_ID_COL])
     const gsName = String(row[GS_NAME_COL] || '').trim()
     // לוקח את הערך המוחלט של הסכום (בגלל שגם בגוגל שיטס יכול להיות שלילי)
     // מנקה סמלי מטבע, פסיקים, ורווחים לפני המרה
@@ -323,7 +323,7 @@ export const syncData = (excelData, googleSheetsData, fund, month) => {
   let matchedSupportRows = 0
   
   excelData.rows.forEach((excelRow) => {
-    const excelId = String(excelRow.idNumber || '').trim().replace(/[\s-]/g, '')
+    const excelId = normalizeIdentifier(excelRow.idNumber)
     // לוקח את הערך המוחלט של הסכום (בגלל שאקסל יכול להיות שלילי)
     const excelAmount = Math.abs(parseFloat(excelRow.amount) || 0)
     const excelDate = excelRow.date || ''

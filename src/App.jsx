@@ -15,6 +15,7 @@ import MaorotPage from './pages/MaorotPage'
 import UnifiedSummariesPage from './pages/UnifiedSummariesPage'
 import LoginPage from './pages/LoginPage'
 import AdminUsersPage from './pages/AdminUsersPage'
+import SupportFormPage from './pages/SupportFormPage'
 
 const AppRoutes = () => {
   const location = useLocation()
@@ -77,6 +78,9 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* Support form route - no authentication required */}
+        <Route path="/support-form" element={<SupportFormPage />} />
 
         {/* Default redirect */}
         <Route

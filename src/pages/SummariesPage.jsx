@@ -2,7 +2,16 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { getAllFundsWithLabels } from '../services/storageService'
 import { summarizeByFundAndOrganization } from '../services/summaryService'
 import { useData } from '../context/DataContext'
+import { loadMaorotData } from '../services/maorotStorage'
 import ConflictResolutionModal from '../components/ConflictResolutionModal'
+import {
+  buildSupportIdentifiers,
+  findColumnIndex,
+  formatDateDisplay,
+  normalizeIdentifier,
+  parseAmount,
+  normalizeString,
+} from '../utils/maorotUtils'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Paper from '@mui/material/Paper'
@@ -68,10 +77,13 @@ const SummariesPage = ({ externalFilters = null, hideFilterUI = false }) => {
   const [selectedFund, setSelectedFund] = useState([]) // מערך של קרנות נבחרות
   const [selectedTransactionType, setSelectedTransactionType] = useState([])
   const [selectedCategory, setSelectedCategory] = useState([]) // מערך של קטגוריות נבחרות
+  const [selectedFrame, setSelectedFrame] = useState([]) // מערך של מסגרות נבחרות
+  const [selectedMonth, setSelectedMonth] = useState([]) // מערך של חודשים נבחרים
   const [summaries, setSummaries] = useState(null)
   const [funds, setFunds] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [maorotData, setMaorotData] = useState(() => loadMaorotData())
   const [conflictModalOpen, setConflictModalOpen] = useState(false)
   const [currentConflict, setCurrentConflict] = useState(null)
   const [conflictResolutions, setConflictResolutions] = useState(() => {
@@ -93,14 +105,21 @@ const SummariesPage = ({ externalFilters = null, hideFilterUI = false }) => {
 
   useEffect(() => {
     const loadFunds = () => {
-      const existingFunds = getAllFundsWithLabels()
-      setFunds(existingFunds)
+    const existingFunds = getAllFundsWithLabels()
+    setFunds(existingFunds)
     }
     
     loadFunds()
     
     // האזנה לעדכוני קרנות
     window.addEventListener('fundsUpdated', loadFunds)
+    
+    // טעינת נתוני מאורות
+    const refreshMaorotData = () => {
+      setMaorotData(loadMaorotData())
+    }
+    window.addEventListener('maorotDataUpdated', refreshMaorotData)
+    window.addEventListener('storage', refreshMaorotData)
     
     // ברירת מחדל: חודש זה
     const now = new Date()
@@ -109,6 +128,8 @@ const SummariesPage = ({ externalFilters = null, hideFilterUI = false }) => {
     
     return () => {
       window.removeEventListener('fundsUpdated', loadFunds)
+      window.removeEventListener('maorotDataUpdated', refreshMaorotData)
+      window.removeEventListener('storage', refreshMaorotData)
     }
   }, [])
 
@@ -163,33 +184,157 @@ const SummariesPage = ({ externalFilters = null, hideFilterUI = false }) => {
     setSummaries(null)
     
     try {
-      // אם יש קרנות נבחרות, מעבירים מערך, אחרת null
-      const fundParam = selectedFund && selectedFund.length > 0 ? selectedFund : null
-      const summary = await summarizeByFundAndOrganization(
-        fundParam,
-        startDate,
-        endDate,
-        googleSheetsId
-      )
+      // שימוש בנתונים מלוח תנועות (returnFileRows)
+      const returnFileRows = maorotData.returnFileRows || []
+      const supports = maorotData.supports || []
+      const supportsHeaders = maorotData.supportsHeaders || []
+      
+      // יצירת סיכום מלוח תנועות
+      const summary = generateSummaryFromMovements(returnFileRows, supports, supportsHeaders, startDate, endDate, selectedCategory, selectedFrame, selectedMonth)
       
       setSummaries(summary)
-      
-      // סינון קונפליקטים שכבר נפתרו
-      const unresolvedConflicts = summary.conflicts?.filter(c => {
-        const key = `${c.idNumber}_${c.date}_${c.amount}`
-        return !conflictResolutions[key]
-      }) || []
-      
-      // אם יש קונפליקטים שלא נפתרו, מציג אותם אחד אחד
-      if (unresolvedConflicts.length > 0) {
-        handleConflicts(unresolvedConflicts)
-      }
     } catch (err) {
       setError(`שגיאה ביצירת סיכום: ${err.message}`)
       console.error(err)
     } finally {
       setLoading(false)
     }
+  }
+
+  // פונקציה ליצירת סיכום מלוח תנועות
+  const generateSummaryFromMovements = (returnFileRows, supports, supportsHeaders, startDate, endDate, selectedCategory = [], selectedFrame = [], selectedMonth = []) => {
+    const categoryIndex = findColumnIndex(supportsHeaders, ['קטגוריה', 'category'], null)
+    const frameIndex = findColumnIndex(supportsHeaders, ['מסגרת', 'frame'], null)
+    
+    const supportLookup = new Map()
+    supports.forEach((support) => {
+      const identifiers = buildSupportIdentifiers(support, supportsHeaders)
+      identifiers.forEach((id) => {
+        if (id) supportLookup.set(id, support)
+      })
+    })
+    
+    const summary = {
+      byFund: {},
+      byOrganization: {},
+      byFundAndOrganization: {},
+      byTransactionType: {
+        donations: 0,
+        scholarships: 0,
+        overheads: 0,
+        supports: 0
+      },
+      byCategory: {},
+      byFrame: {},
+      byMonth: {},
+      total: {
+        donations: 0,
+        scholarships: 0,
+        overheads: 0,
+        supports: 0,
+        supportsByCategory: {},
+        totalAmount: 0
+      },
+      conflicts: []
+    }
+    
+    returnFileRows.forEach((row) => {
+      // סינון לפי תאריך
+      // מטפל בתאריך בפורמט DD/MM/YYYY או Date object
+      let rowDate = null
+      if (row.date) {
+        if (row.date instanceof Date) {
+          rowDate = row.date
+        } else if (typeof row.date === 'string') {
+          // מנסה לפרסר תאריך בפורמט DD/MM/YYYY
+          const dateParts = row.date.split('/')
+          if (dateParts.length === 3) {
+            const [day, month, year] = dateParts
+            rowDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+          } else {
+            rowDate = new Date(row.date)
+          }
+        }
+      }
+      
+      if (rowDate && !isNaN(rowDate.getTime()) && (rowDate < startDate || rowDate > endDate)) {
+        return
+      }
+      
+      const idCandidates = [
+        normalizeIdentifier(row.idNumber),
+        normalizeIdentifier(row.generalSupplierNumber),
+        normalizeIdentifier(row.maorotSupplierNumber),
+      ].filter(Boolean)
+      
+      let supportMatch = null
+      for (const id of idCandidates) {
+        if (supportLookup.has(id)) {
+          supportMatch = supportLookup.get(id)
+          break
+        }
+      }
+      
+      const amount = parseAmount(row.amount)
+      if (amount <= 0) return
+      
+      const categoryValue = supportMatch && Number.isInteger(categoryIndex) && Array.isArray(supportMatch.rawRow)
+        ? normalizeString(supportMatch.rawRow[categoryIndex]) || 'לא סווג'
+        : 'לא סווג'
+      
+      const frameValue = supportMatch && Number.isInteger(frameIndex) && Array.isArray(supportMatch.rawRow)
+        ? normalizeString(supportMatch.rawRow[frameIndex]) || 'לא סווג'
+        : 'לא סווג'
+      
+      // חילוץ חודש מתאריך - פורמט MM/YYYY
+      let monthKey = 'ללא תאריך'
+      if (rowDate && !isNaN(rowDate.getTime())) {
+        const month = String(rowDate.getMonth() + 1).padStart(2, '0')
+        const year = rowDate.getFullYear()
+        monthKey = `${month}/${year}`
+      } else if (row.date) {
+        // אם התאריך הוא מחרוזת בפורמט DD/MM/YYYY, נחלץ את החודש
+        const dateStr = String(row.date)
+        const dateParts = dateStr.split('/')
+        if (dateParts.length === 3) {
+          const [day, month, year] = dateParts
+          monthKey = `${month}/${year}`
+        }
+      }
+      
+      // סינון לפי קטגוריה, מסגרת וחודש
+      if (selectedCategory.length > 0 && !selectedCategory.includes(categoryValue)) {
+        return
+      }
+      if (selectedFrame.length > 0 && !selectedFrame.includes(frameValue)) {
+        return
+      }
+      if (selectedMonth.length > 0 && !selectedMonth.includes(monthKey)) {
+        return
+      }
+      
+      // עדכון סיכומים
+      if (!summary.byCategory[categoryValue]) summary.byCategory[categoryValue] = 0
+      summary.byCategory[categoryValue] += amount
+      
+      if (!summary.byFrame[frameValue]) summary.byFrame[frameValue] = 0
+      summary.byFrame[frameValue] += amount
+      
+      if (!summary.byMonth[monthKey]) summary.byMonth[monthKey] = 0
+      summary.byMonth[monthKey] += amount
+      
+      // תמיכות בלבד (כי זה מלוח תנועות)
+      summary.byTransactionType.supports += amount
+      summary.total.supports += amount
+      summary.total.totalAmount += amount
+      
+      if (!summary.total.supportsByCategory[categoryValue]) {
+        summary.total.supportsByCategory[categoryValue] = 0
+      }
+      summary.total.supportsByCategory[categoryValue] += amount
+    })
+    
+    return summary
   }
 
   const handleConflicts = (conflicts) => {
@@ -516,14 +661,64 @@ const SummariesPage = ({ externalFilters = null, hideFilterUI = false }) => {
       }))
     })
 
+    // נתונים לפי מסגרת - עם סינון
+    let frameEntries = Object.entries(summaries.byFrame || {})
+      .filter(([frame, amount]) => {
+        const numAmount = Number(amount)
+        return !isNaN(numAmount) && isFinite(numAmount) && numAmount !== 0
+      })
+    
+    // סינון לפי מסגרות נבחרות
+    if (selectedFrame && selectedFrame.length > 0) {
+      frameEntries = frameEntries.filter(([frame]) => selectedFrame.includes(frame))
+    }
+    
+    const frameData = frameEntries
+      .sort((a, b) => b[1] - a[1])
+      .map(([frame, amount]) => ({
+        name: frame || 'ללא שם',
+        value: Math.abs(amount || 0),
+        amount: amount || 0
+      }))
+      .filter(item => item.value > 0)
+    
+    // נתונים לפי חודש - עם סינון
+    let monthEntries = Object.entries(summaries.byMonth || {})
+      .filter(([month, amount]) => {
+        const numAmount = Number(amount)
+        return !isNaN(numAmount) && isFinite(numAmount) && numAmount !== 0
+      })
+    
+    // סינון לפי חודשים נבחרים
+    if (selectedMonth && selectedMonth.length > 0) {
+      monthEntries = monthEntries.filter(([month]) => selectedMonth.includes(month))
+    }
+    
+    const monthData = monthEntries
+      .sort((a, b) => {
+        // מיון לפי תאריך (MM/YYYY)
+        const [monthA, yearA] = a[0].split('/')
+        const [monthB, yearB] = b[0].split('/')
+        if (yearA !== yearB) return yearA.localeCompare(yearB)
+        return monthA.localeCompare(monthB)
+      })
+      .map(([month, amount]) => ({
+        name: month || 'ללא תאריך',
+        value: Math.abs(amount || 0),
+        amount: amount || 0
+      }))
+      .filter(item => item.value > 0)
+
     return {
       transactionTypeData,
       fundData,
       orgData,
       categoryData,
-      fundOrgData
+      fundOrgData,
+      frameData,
+      monthData
     }
-  }, [summaries, selectedFund, selectedTransactionType, selectedCategory])
+  }, [summaries, selectedFund, selectedTransactionType, selectedCategory, selectedFrame, selectedMonth])
 
   // רשימת קטגוריות לסינון
   const availableCategories = useMemo(() => {
@@ -763,30 +958,31 @@ const SummariesPage = ({ externalFilters = null, hideFilterUI = false }) => {
           </Grid>
         </Grid>
 
-        {/* סינון קטגוריה - רק אחרי טעינת נתונים */}
-        {summaries && availableCategories.length > 0 && (
+        {/* סינון קטגוריה / מסגרת / חודש - רק אחרי טעינת נתונים */}
+        {summaries && (availableCategories.length > 0 || availableFrames.length > 0 || availableMonths.length > 0) && (
           <Grid container spacing={2} sx={{ mt: 2 }}>
-            <Grid item xs={12} sm={6} md={4}>
-              <FormControl fullWidth>
-                <InputLabel sx={{ color: 'white' }}>קטגוריה</InputLabel>
-                  <Select
-                  multiple
-                  value={selectedCategory}
-                  label="קטגוריה"
-                  onChange={(e) => {
-                    setSelectedCategory(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)
-                  }}
-                  renderValue={(selected) => {
-                    if (selected.length === 0) {
-                      return <span style={{ color: 'rgba(255, 255, 255, 0.7)' }}>ללא סינון</span>
-                    }
-                    if (selected.length === 1) {
-                      return selected[0]
-                    }
-                    return `${selected.length} קטגוריות נבחרו`
-                  }}
-                  sx={{
-                    color: 'white',
+            {availableCategories.length > 0 && (
+              <Grid item xs={12} sm={6} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel sx={{ color: 'white' }}>קטגוריה</InputLabel>
+                    <Select
+                    multiple
+                    value={selectedCategory}
+                    label="קטגוריה"
+                    onChange={(e) => {
+                      setSelectedCategory(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)
+                    }}
+                    renderValue={(selected) => {
+                      if (selected.length === 0) {
+                        return <span style={{ color: 'rgba(255, 255, 255, 0.7)' }}>ללא סינון</span>
+                      }
+                      if (selected.length === 1) {
+                        return selected[0]
+                      }
+                      return `${selected.length} קטגוריות נבחרו`
+                    }}
+                    sx={{
+                      color: 'white',
                     '& .MuiOutlinedInput-notchedOutline': {
                       borderColor: 'rgba(255, 255, 255, 0.5)',
                     },
@@ -806,6 +1002,93 @@ const SummariesPage = ({ externalFilters = null, hideFilterUI = false }) => {
                 </Select>
               </FormControl>
             </Grid>
+            )}
+            
+            {availableFrames.length > 0 && (
+              <Grid item xs={12} sm={6} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel sx={{ color: 'white' }}>מסגרת</InputLabel>
+                  <Select
+                    multiple
+                    value={selectedFrame}
+                    label="מסגרת"
+                    onChange={(e) => {
+                      setSelectedFrame(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)
+                    }}
+                    renderValue={(selected) => {
+                      if (selected.length === 0) {
+                        return <span style={{ color: 'rgba(255, 255, 255, 0.7)' }}>ללא סינון</span>
+                      }
+                      if (selected.length === 1) {
+                        return selected[0]
+                      }
+                      return `${selected.length} מסגרות נבחרו`
+                    }}
+                    sx={{
+                      color: 'white',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(255, 255, 255, 0.5)',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(255, 255, 255, 0.8)',
+                      },
+                      '& .MuiSvgIcon-root': {
+                        color: 'white',
+                      },
+                    }}
+                  >
+                    {availableFrames.map((frame) => (
+                      <MenuItem key={frame} value={frame}>
+                        {frame}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+            
+            {availableMonths.length > 0 && (
+              <Grid item xs={12} sm={6} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel sx={{ color: 'white' }}>חודש</InputLabel>
+                  <Select
+                    multiple
+                    value={selectedMonth}
+                    label="חודש"
+                    onChange={(e) => {
+                      setSelectedMonth(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)
+                    }}
+                    renderValue={(selected) => {
+                      if (selected.length === 0) {
+                        return <span style={{ color: 'rgba(255, 255, 255, 0.7)' }}>ללא סינון</span>
+                      }
+                      if (selected.length === 1) {
+                        return selected[0]
+                      }
+                      return `${selected.length} חודשים נבחרו`
+                    }}
+                    sx={{
+                      color: 'white',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(255, 255, 255, 0.5)',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(255, 255, 255, 0.8)',
+                      },
+                      '& .MuiSvgIcon-root': {
+                        color: 'white',
+                      },
+                    }}
+                  >
+                    {availableMonths.map((month) => (
+                      <MenuItem key={month} value={month}>
+                        {month}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
           </Grid>
         )}
       </Paper>
@@ -1380,6 +1663,218 @@ const SummariesPage = ({ externalFilters = null, hideFilterUI = false }) => {
                       />
                     </AreaChart>
                   </ResponsiveContainer>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {/* גרף עוגה - מסגרות */}
+          {chartData.frameData && chartData.frameData.length > 0 && (
+            <Grid item xs={12} md={6}>
+              <Card 
+                elevation={8}
+                sx={{ 
+                  height: '100%',
+                  borderRadius: 3,
+                  background: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+                  }
+                }}
+              >
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#667eea' }}>
+                      סיכום לפי מסגרות
+                    </Typography>
+                    <Tooltip title="הורד כתמונה">
+                      <IconButton
+                        onClick={() => downloadChartAsImage(frameChartRef, 'מסגרות')}
+                        size="small"
+                        sx={{
+                          color: '#667eea',
+                          '&:hover': {
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            transform: 'scale(1.1)'
+                          },
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <DownloadIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                  <Box ref={frameChartRef}>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <PieChart>
+                        <Pie
+                          data={chartData.frameData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={true}
+                          label={({ name, value, percent, cx, cy, midAngle, innerRadius, outerRadius }) => {
+                            const RADIAN = Math.PI / 180
+                            if (percent < 0.05) return null
+                            const isSmallSlice = percent < 0.12
+                            const labelRadius = isSmallSlice ? outerRadius + 70 : outerRadius + 35
+                            const x = cx + labelRadius * Math.cos(-midAngle * RADIAN)
+                            const y = cy + labelRadius * Math.sin(-midAngle * RADIAN)
+                            const formattedValue = formatCurrency(value)
+                            const percentValue = (percent * 100).toFixed(1)
+                            const lineX = cx + outerRadius * Math.cos(-midAngle * RADIAN)
+                            const lineY = cy + outerRadius * Math.sin(-midAngle * RADIAN)
+                            const textAnchor = x > cx ? 'start' : 'end'
+                            return (
+                              <g>
+                                <line x1={lineX} y1={lineY} x2={x} y2={y} stroke="#475569" strokeWidth={2} strokeOpacity={0.7} />
+                                <text
+                                  x={x}
+                                  y={y}
+                                  textAnchor={textAnchor}
+                                  dominantBaseline="central"
+                                  style={{
+                                    fill: '#0f172a',
+                                    fontSize: isSmallSlice ? '12px' : '13px',
+                                    fontWeight: 700,
+                                    paintOrder: 'stroke',
+                                    stroke: '#ffffff',
+                                    strokeWidth: 4,
+                                    strokeLinecap: 'round',
+                                    strokeLinejoin: 'round',
+                                  }}
+                                >
+                                  <tspan x={x} dy={isSmallSlice ? "-8" : "-10"} style={{ fontSize: isSmallSlice ? '12px' : '14px', fontWeight: 800 }}>
+                                    {name}
+                                  </tspan>
+                                  <tspan x={x} dy="15" style={{ fontSize: isSmallSlice ? '11px' : '12px', fontWeight: 700 }}>
+                                    {formattedValue} ₪
+                                  </tspan>
+                                  <tspan x={x} dy="15" style={{ fontSize: isSmallSlice ? '10px' : '11px' }}>
+                                    {percentValue}%
+                                  </tspan>
+                                </text>
+                              </g>
+                            )
+                          }}
+                          outerRadius={120}
+                          innerRadius={40}
+                          fill="#8884d8"
+                          dataKey="value"
+                          stroke="#ffffff"
+                          strokeWidth={3}
+                        >
+                          {chartData.frameData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip 
+                          formatter={(value, name) => [
+                            `${formatCurrency(value)} ₪`,
+                            name
+                          ]}
+                          contentStyle={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            border: '1px solid #e0e0e0',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                            fontSize: '14px',
+                            fontWeight: 600
+                          }}
+                        />
+                        <Legend 
+                          verticalAlign="bottom" 
+                          height={36}
+                          formatter={(value) => <span style={{ fontSize: '13px', fontWeight: 600 }}>{value}</span>}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {/* גרף עמודות - לפי חודשים */}
+          {chartData.monthData && chartData.monthData.length > 0 && (
+            <Grid item xs={12}>
+              <Card 
+                elevation={8}
+                sx={{ 
+                  borderRadius: 3,
+                  background: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+                  }
+                }}
+              >
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#667eea' }}>
+                      סיכום לפי חודשים
+                    </Typography>
+                    <Tooltip title="הורד כתמונה">
+                      <IconButton
+                        onClick={() => downloadChartAsImage(monthChartRef, 'חודשים')}
+                        size="small"
+                        sx={{
+                          color: '#667eea',
+                          '&:hover': {
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            transform: 'scale(1.1)'
+                          },
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <DownloadIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                  <Box ref={monthChartRef}>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <BarChart data={chartData.monthData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e8e8e8" opacity={0.5} />
+                        <XAxis 
+                          dataKey="name" 
+                          angle={-45} 
+                          textAnchor="end" 
+                          height={100}
+                          tick={{ fontSize: 12, fill: '#666', fontWeight: 600 }}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 12, fill: '#666', fontWeight: 600 }}
+                          tickFormatter={(value) => formatCurrency(value)}
+                        />
+                        <RechartsTooltip 
+                          formatter={(value) => `${formatCurrency(value)} ₪`}
+                          contentStyle={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                            border: '1px solid #d0d0d0',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                            fontSize: '13px',
+                            fontWeight: 600
+                          }}
+                          labelStyle={{ fontWeight: 700, marginBottom: '8px', fontSize: '14px' }}
+                        />
+                        <Legend />
+                        <Bar 
+                          dataKey="value" 
+                          fill="#667eea" 
+                          radius={[8, 8, 0, 0]}
+                          stroke="#667eea"
+                          strokeWidth={2}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </Box>
                 </CardContent>
               </Card>

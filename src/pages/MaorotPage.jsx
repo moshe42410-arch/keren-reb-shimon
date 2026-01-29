@@ -57,6 +57,12 @@ const MaorotPage = () => {
               returnFileRows={maorotData.returnFileRows}
               supports={maorotData.supports}
               supportsHeaders={maorotData.supportsHeaders}
+              onSupportsChange={(entries) =>
+                setMaorotData((prev) => ({ ...prev, supports: entries }))
+              }
+              onReturnFileRowsChange={(rows) =>
+                setMaorotData((prev) => ({ ...prev, returnFileRows: rows }))
+              }
             />
           )}
 

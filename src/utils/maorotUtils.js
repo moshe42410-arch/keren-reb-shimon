@@ -48,17 +48,34 @@ export const formatDateDisplay = (value) => {
   } else {
     const normalized = normalizeString(value)
     if (!normalized) return ''
-    const parsed = new Date(normalized)
-    if (!Number.isNaN(parsed.getTime())) {
-      date = parsed
-    } else {
-      const parts = normalized.split(/[./-]/)
-      if (parts.length === 3) {
-        const [day, month, year] = parts
-        const candidate = new Date(Number(year), Number(month) - 1, Number(day))
+    
+    // בודק אם התאריך כבר בפורמט DD/MM/YYYY (פורמט ישראלי)
+    // אם כן, מפרסר אותו ישירות כ-DD/MM/YYYY
+    const parts = normalized.split(/[./-]/)
+    if (parts.length === 3) {
+      const [first, second, third] = parts
+      const firstNum = parseInt(first, 10)
+      const secondNum = parseInt(second, 10)
+      const thirdNum = parseInt(third, 10)
+      
+      // אם החלק הראשון הוא בין 1-31 והחלק השני הוא בין 1-12, זה כנראה DD/MM/YYYY
+      if (firstNum >= 1 && firstNum <= 31 && secondNum >= 1 && secondNum <= 12 && thirdNum >= 2000 && thirdNum <= 2100) {
+        const candidate = new Date(thirdNum, secondNum - 1, firstNum)
         if (!Number.isNaN(candidate.getTime())) {
           date = candidate
         }
+      } else {
+        // נסה לפרסר כ-MM/DD/YYYY (פורמט אמריקאי) או YYYY-MM-DD
+        const parsed = new Date(normalized)
+        if (!Number.isNaN(parsed.getTime())) {
+          date = parsed
+        }
+      }
+    } else {
+      // נסה לפרסר כ-MM/DD/YYYY (פורמט אמריקאי) או YYYY-MM-DD
+      const parsed = new Date(normalized)
+      if (!Number.isNaN(parsed.getTime())) {
+        date = parsed
       }
     }
   }
@@ -102,17 +119,46 @@ export const formatDateInput = (value) => {
 }
 
 export const readSpreadsheetFile = async (file) => {
-  const data = new Uint8Array(await file.arrayBuffer())
-  const workbook = XLSX.read(data, { type: 'array' })
-  const sheetName = workbook.SheetNames[0]
-  const worksheet = workbook.Sheets[sheetName]
-  const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
-  return {
-    workbook,
-    sheetName,
-    rawData,
-    headers: rawData[0] || [],
-    rows: rawData.slice(1),
+  try {
+    const data = new Uint8Array(await file.arrayBuffer())
+    // מוסיף אופציות נוספות לטיפול בקבצים עם בעיות XML
+    const workbook = XLSX.read(data, { 
+      type: 'array',
+      cellStyles: false,
+      cellNF: false,
+      cellHTML: false,
+      sheetStubs: false,
+      bookVBA: false,
+      bookSheets: false,
+      bookProps: false,
+      bookFiles: false,
+      bookSST: false,
+      password: '',
+    })
+    const sheetName = workbook.SheetNames[0]
+    const worksheet = workbook.Sheets[sheetName]
+    if (!worksheet) {
+      throw new Error('לא נמצא גיליון בקובץ Excel')
+    }
+    const rawData = XLSX.utils.sheet_to_json(worksheet, { 
+      header: 1, 
+      defval: '',
+      raw: false,
+    })
+    return {
+      workbook,
+      sheetName,
+      rawData,
+      headers: rawData[0] || [],
+      rows: rawData.slice(1),
+    }
+  } catch (error) {
+    console.error('שגיאה בקריאת קובץ Excel:', error)
+    // אם יש בעיה עם XLSX, ננסה גישה אחרת
+    if (error.message && error.message.includes('Unknown Namespace')) {
+      throw new Error('הקובץ Excel מכיל פורמט לא נתמך. נא לנסות לשמור את הקובץ מחדש בפורמט .xlsx או .xls')
+    }
+    throw new Error(`לא ניתן לקרוא את הקובץ: ${error.message || 'שגיאה לא ידועה'}`)
   }
 }
 
@@ -153,20 +199,120 @@ export const RETURN_FILE_MAPPING = {
   amountIndex: 5,
 }
 
-export const normalizeIdentifier = (value) => normalizeString(value).replace(/\D/g, '')
+/**
+ * מנרמל מספר זהות/מזהה - מסיר תווים לא-מספריים ואפסים מובילים
+ * כך ש-000123456, 00123456, 123456 יהפכו כולם ל-123456
+ */
+export const normalizeIdentifier = (value) => {
+  const cleaned = normalizeString(value).replace(/\D/g, '')
+  // הסרת אפסים מובילים - אבל שומר על 0 אם המספר הוא רק 0
+  if (!cleaned) return ''
+  const withoutLeadingZeros = cleaned.replace(/^0+/, '')
+  return withoutLeadingZeros || '0' // אם הכל היה אפסים, נחזיר '0'
+}
 
 export const buildReturnFileRows = (rawData, mapping = RETURN_FILE_MAPPING) => {
   if (!rawData || rawData.length === 0) return []
   const rows = rawData.slice(1).filter((row) => row && row.some((cell) => normalizeString(cell)))
   return rows.map((row) => ({
-    idNumber: normalizeString(row[mapping.idIndex] || ''),
-    generalSupplierNumber: normalizeString(row[mapping.generalSupplierIndex] || ''),
-    maorotSupplierNumber: normalizeString(row[mapping.maorotSupplierIndex] || ''),
+    idNumber: normalizeIdentifier(row[mapping.idIndex] || ''), // מנורמל - מסיר אפסים מובילים
+    generalSupplierNumber: normalizeIdentifier(row[mapping.generalSupplierIndex] || ''), // מנורמל
+    maorotSupplierNumber: normalizeIdentifier(row[mapping.maorotSupplierIndex] || ''), // מנורמל
     name: normalizeString(row[mapping.nameIndex] || ''),
     date: row[mapping.dateIndex] ?? '',
     amount: parseAmount(row[mapping.amountIndex]),
     rawRow: row,
   }))
+}
+
+/**
+ * בונה שורות מקובץ חוזר בפורמט שנתי
+ * פורמט: מספר ספק כולל, מספר ספק מאורות, ת.ז, שם, ולאחר מכן עמודות חודשיות (07, 08, 09 וכו')
+ * כל עמודת חודש יוצרת שורה נפרדת
+ */
+/**
+ * בונה שורות מקובץ חוזר בפורמט שנתי
+ * פורמט: מספר ספק כולל, מספר ספק מאורות, ת.ז, שם, ולאחר מכן עמודות חודשיות (07, 08, 09 וכו')
+ * כל עמודת חודש יוצרת שורה נפרדת
+ */
+export const buildReturnFileRowsYearly = (rawData, year = null) => {
+  if (!rawData || rawData.length === 0) return []
+  
+  const headers = rawData[0] || []
+  const rows = rawData.slice(1).filter((row) => row && row.some((cell) => normalizeString(cell)))
+  
+  // אם לא הועברה שנה, משתמשים בשנה הנוכחית
+  const targetYear = year || new Date().getFullYear()
+  
+  // מציאת אינדקסים של עמודות הבסיס לפי סדר: מספר ספק כולל (0), מספר ספק מאורות (1), ת.ז (2), שם (3)
+  // אבל מחפש לפי שם העמודה, לא לפי אינדקס
+  const generalSupplierIndex = findColumnIndex(headers, ['מספר ספק כולל', 'מס\' ספק כולל', 'ספק כולל'], 0)
+  const maorotSupplierIndex = findColumnIndex(headers, ['מספר ספק מאורות', 'מס\' ספק מאורות', 'ספק מאורות'], 1)
+  const idIndex = findColumnIndex(headers, ['ת.ז', 'תז', 'מ.ז', 'מספר זהות'], 2)
+  const nameIndex = findColumnIndex(headers, ['שם'], 3)
+  
+  // מציאת עמודות חודשיות (7, 8, 9, 10, 11, 12 או 07, 08, 09 וכו')
+  // דילוג על 4 העמודות הראשונות (מספר ספק כולל, מספר ספק מאורות, ת.ז, שם)
+  const monthColumns = []
+  headers.forEach((header, index) => {
+    // דילוג על עמודות הבסיס - בודק אם זה אחד מהאינדקסים של עמודות הבסיס
+    if (index === generalSupplierIndex || index === maorotSupplierIndex || index === idIndex || index === nameIndex) {
+      return
+    }
+    const headerStr = normalizeString(header)
+    // בודק אם זה מספר חודש (1-12 או 01-12) - גם ספרה אחת וגם שתי ספרות
+    const monthMatch = headerStr.match(/^(\d{1,2})$/)
+    if (monthMatch) {
+      const monthNum = parseInt(monthMatch[1], 10)
+      if (monthNum >= 1 && monthNum <= 12) {
+        monthColumns.push({ index, month: monthNum, header: headerStr })
+      }
+    }
+  })
+  
+  const resultRows = []
+  
+  rows.forEach((row, rowIndex) => {
+    const generalSupplierNumber = normalizeIdentifier(row[generalSupplierIndex] || '') // מנורמל - מסיר אפסים מובילים
+    const maorotSupplierNumber = normalizeIdentifier(row[maorotSupplierIndex] || '') // מנורמל
+    const idNumber = normalizeIdentifier(row[idIndex] || '') // מנורמל - מסיר אפסים מובילים
+    const name = normalizeString(row[nameIndex] || '')
+    
+    // אם אין נתונים בסיסיים, דילוג
+    if (!generalSupplierNumber && !maorotSupplierNumber && !idNumber) {
+      return
+    }
+    
+    // עבור כל עמודת חודש, יצירת שורה נפרדת - רק אם הסכום גדול מ-0
+    monthColumns.forEach(({ index, month }) => {
+      const amount = parseAmount(row[index])
+      // לא יוצרים שורה אם הסכום הוא 0 או ריק
+      if (amount <= 0) {
+        return
+      }
+      
+      // יצירת תאריך לחודש (יום 1 של החודש)
+      // פורמט תאריך: DD/MM/YYYY - תמיד יום 1 של החודש הרלוונטי (פורמט ישראלי)
+      const day = '01'
+      const monthStr = String(month).padStart(2, '0')
+      const yearStr = String(targetYear)
+      const formattedDate = `${day}/${monthStr}/${yearStr}`
+      
+      resultRows.push({
+        idNumber,
+        generalSupplierNumber,
+        maorotSupplierNumber,
+        name,
+        date: formattedDate, // תאריך בפורמט DD/MM/YYYY
+        amount,
+        rawRow: [...row], // שמירת השורה המקורית
+        sourceRowIndex: rowIndex,
+        month,
+      })
+    })
+  })
+  
+  return resultRows
 }
 
 export const buildSupportIdentifiers = (support, headers = []) => {
@@ -205,9 +351,9 @@ export const parseDirectoryRows = (rawData) => {
     .filter((row) => row && row.some((cell) => normalizeString(cell)))
     .map((row, rowIndex) => ({
       id: `${Date.now()}-${rowIndex}`,
-      idNumber: normalizeString(row[idIndex]),
-      maorotSupplierNumber: normalizeString(row[maorotSupplierIndex]),
-      generalSupplierNumber: normalizeString(row[generalSupplierIndex]),
+      idNumber: normalizeIdentifier(row[idIndex]), // מנורמל - מסיר אפסים מובילים
+      maorotSupplierNumber: normalizeIdentifier(row[maorotSupplierIndex]), // מנורמל
+      generalSupplierNumber: normalizeIdentifier(row[generalSupplierIndex]), // מנורמל
       name: normalizeString(row[nameIndex]),
       bankNumber: normalizeString(row[bankIndex]),
       branchNumber: normalizeString(row[branchIndex]),
@@ -246,7 +392,7 @@ export const parseSupportRows = (rawData) => {
       }
       return {
         id: `${Date.now()}-${rowIndex}`,
-        idNumber: normalizeString(row[idIndex]),
+        idNumber: normalizeIdentifier(row[idIndex]), // מנורמל - מסיר אפסים מובילים
         name: normalizeString(row[nameIndex]),
         amount: normalizeString(row[amountIndex]),
         supportType: normalizeSupportType(rawSupportType) || 'קבועה',
@@ -365,3 +511,4 @@ export const mapValuesToTemplate = (headers, values) => {
 
   return buildTemplateRow(headers, { ...valuesMap, ...values })
 }
+

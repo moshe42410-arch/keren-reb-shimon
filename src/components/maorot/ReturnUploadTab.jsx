@@ -1,12 +1,21 @@
 import React, { useMemo, useState } from 'react'
 import {
   buildReturnFileRows,
+  buildReturnFileRowsYearly,
   normalizeIdentifier,
   normalizeString,
   parseAmount,
   readSpreadsheetFile,
   RETURN_FILE_MAPPING,
 } from '../../utils/maorotUtils'
+import { exportToExcel } from '../../services/exportUtils'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContentText from '@mui/material/DialogContentText'
+import TextField from '@mui/material/TextField'
+import Button from '@mui/material/Button'
 
 const ReturnUploadTab = ({
   lastGeneratedFileRows,
@@ -24,6 +33,10 @@ const ReturnUploadTab = ({
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [fileFormat, setFileFormat] = useState('monthly') // 'monthly' or 'yearly'
+  const [yearDialogOpen, setYearDialogOpen] = useState(false)
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [pendingFileData, setPendingFileData] = useState(null)
 
   const baselineRows = lastGeneratedFileRows || []
   const baselineKey = lastGeneratedMonthKey || ''
@@ -78,6 +91,60 @@ const ReturnUploadTab = ({
     return { missingInReturn, missingInGenerated }
   }
 
+  const handleDownloadExample = () => {
+    if (fileFormat === 'monthly') {
+      // דוגמא לפורמט חודשי
+      const exampleData = [
+        {
+          'מ.ז': '123456789',
+          'מס\' ספק כולל': '5555',
+          'מס\' ספק מאורות': '6666',
+          'שם': 'ישראל ישראלי',
+          'תאריך': '01/01/2024',
+          'סכום': 1000
+        },
+        {
+          'מ.ז': '987654321',
+          'מס\' ספק כולל': '7777',
+          'מס\' ספק מאורות': '8888',
+          'שם': 'שרה כהן',
+          'תאריך': '15/01/2024',
+          'סכום': 2000
+        }
+      ]
+      exportToExcel(exampleData, 'דוגמא', 'פורמט_קובץ_חודשי_לדוגמא.xlsx')
+    } else {
+      // דוגמא לפורמט שנתי
+      const exampleData = [
+        {
+          'מספר ספק כולל': '5555',
+          'מספר ספק מאורות': '6666',
+          'ת.ז': '123456789',
+          'שם': 'ישראל ישראלי',
+          '01': 1000,
+          '02': 1500,
+          '03': 2000,
+          '04': '',
+          '05': '',
+          '06': 3000
+        },
+        {
+          'מספר ספק כולל': '7777',
+          'מספר ספק מאורות': '8888',
+          'ת.ז': '987654321',
+          'שם': 'שרה כהן',
+          '01': 2500,
+          '02': '',
+          '03': 3000,
+          '04': 3500,
+          '05': 4000,
+          '06': ''
+        }
+      ]
+      exportToExcel(exampleData, 'דוגמא', 'פורמט_קובץ_שנתי_לדוגמא.xlsx')
+    }
+  }
+
   const handleUpload = async (event) => {
     const file = event.target.files[0]
     if (!file) return
@@ -90,7 +157,141 @@ const ReturnUploadTab = ({
     setLoading(true)
     try {
       const { rawData } = await readSpreadsheetFile(file)
-      const rows = buildReturnFileRows(rawData, RETURN_FILE_MAPPING)
+      
+      // אם זה פורמט שנתי, צריך לבדוק אם יש צורך בשנה
+      if (fileFormat === 'yearly') {
+        // בודק אם יש ציון שנה בכותרות
+        const headers = rawData[0] || []
+        let hasYearInHeaders = false
+        let extractedYear = null
+        
+        // בודק אם יש כותרת שמכילה שנה (4 ספרות) - פורמטים כמו "07/2024", "2024-07", "07-2024", "2024"
+        for (const header of headers) {
+          const headerStr = normalizeString(header)
+          // בודק אם יש פורמט עם שנה (4 ספרות)
+          const yearMatch = headerStr.match(/(\d{4})/)
+          if (yearMatch) {
+            const year = parseInt(yearMatch[1], 10)
+            // בודק אם השנה סבירה (למשל בין 2000 ל-2100)
+            if (year >= 2000 && year <= 2100) {
+              hasYearInHeaders = true
+              extractedYear = year
+              break
+            }
+          }
+        }
+        
+        // אם לא מצאנו שנה, בודקים אם יש כותרות שהם רק חודשים (1-12) ללא שנה
+        // אם כן, צריך לבקש מהמשתמש לבחור שנה
+        if (!hasYearInHeaders) {
+          let hasMonthOnlyHeaders = false
+          for (const header of headers) {
+            const headerStr = normalizeString(header)
+            // בודק אם זה רק מספר חודש (1-12) ללא שנה
+            const monthOnlyMatch = headerStr.match(/^(\d{1,2})$/)
+            if (monthOnlyMatch) {
+              const monthNum = parseInt(monthOnlyMatch[1], 10)
+              if (monthNum >= 1 && monthNum <= 12) {
+                hasMonthOnlyHeaders = true
+                break
+              }
+            }
+          }
+          
+          // אם יש כותרות חודש בלבד, מציגים דיאלוג לבחירת שנה
+          if (hasMonthOnlyHeaders) {
+            setPendingFileData(rawData)
+            setYearDialogOpen(true)
+            setLoading(false)
+            return
+          }
+        }
+        
+        // אם יש שנה בכותרות, משתמשים בה
+        const rows = buildReturnFileRowsYearly(rawData, extractedYear || new Date().getFullYear())
+        const results = hasBaseline
+          ? compareRows(baselineRows, rows)
+          : { missingInReturn: [], missingInGenerated: [] }
+        setDraftRows(rows)
+        setDraftResults(results)
+        
+        if (hasBaseline && results.missingInGenerated.length > 0 && directoryEntries) {
+          const existingIds = new Set(
+            directoryEntries.map((entry) => normalizeIdentifier(entry.idNumber))
+          )
+          const newEntries = results.missingInGenerated
+            .filter((row) => {
+              const id = normalizeIdentifier(row.idNumber)
+              return id && !existingIds.has(id)
+            })
+            .map((row) => ({
+              id: `${Date.now()}-${Math.random()}`,
+              idNumber: row.idNumber,
+              generalSupplierNumber: row.generalSupplierNumber,
+              maorotSupplierNumber: row.maorotSupplierNumber,
+              name: row.name,
+              bankNumber: '',
+              branchNumber: '',
+              accountNumber: '',
+              rawRow: row.rawRow,
+            }))
+          if (newEntries.length > 0) {
+            onDirectoryChange?.([...directoryEntries, ...newEntries])
+          }
+        }
+      } else {
+        // פורמט חודשי
+        const rows = buildReturnFileRows(rawData, RETURN_FILE_MAPPING)
+        const results = hasBaseline
+          ? compareRows(baselineRows, rows)
+          : { missingInReturn: [], missingInGenerated: [] }
+        setDraftRows(rows)
+        setDraftResults(results)
+
+        if (hasBaseline && results.missingInGenerated.length > 0 && directoryEntries) {
+          const existingIds = new Set(
+            directoryEntries.map((entry) => normalizeIdentifier(entry.idNumber))
+          )
+          const newEntries = results.missingInGenerated
+            .filter((row) => {
+              const id = normalizeIdentifier(row.idNumber)
+              return id && !existingIds.has(id)
+            })
+            .map((row) => ({
+              id: `${Date.now()}-${Math.random()}`,
+              idNumber: row.idNumber,
+              generalSupplierNumber: row.generalSupplierNumber,
+              maorotSupplierNumber: row.maorotSupplierNumber,
+              name: row.name,
+              bankNumber: '',
+              branchNumber: '',
+              accountNumber: '',
+              rawRow: row.rawRow,
+            }))
+          if (newEntries.length > 0) {
+            onDirectoryChange?.([...directoryEntries, ...newEntries])
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err)
+      setError('לא ניתן לקרוא את הקובץ החוזר.')
+    } finally {
+      setLoading(false)
+      event.target.value = ''
+    }
+  }
+
+  const handleYearConfirm = () => {
+    if (!pendingFileData) {
+      setYearDialogOpen(false)
+      return
+    }
+    
+    setLoading(true)
+    try {
+      const rows = buildReturnFileRowsYearly(pendingFileData, selectedYear)
+      const hasBaseline = baselineRows.length > 0
       const results = hasBaseline
         ? compareRows(baselineRows, rows)
         : { missingInReturn: [], missingInGenerated: [] }
@@ -121,12 +322,14 @@ const ReturnUploadTab = ({
           onDirectoryChange?.([...directoryEntries, ...newEntries])
         }
       }
+      
+      setYearDialogOpen(false)
+      setPendingFileData(null)
     } catch (err) {
       console.error(err)
       setError('לא ניתן לקרוא את הקובץ החוזר.')
     } finally {
       setLoading(false)
-      event.target.value = ''
     }
   }
 
@@ -160,6 +363,48 @@ const ReturnUploadTab = ({
         <p className="text-sm text-gray-500 mb-6">
           העלאת קובץ חוזר ובדיקת התאמה מול קובץ המחולל.
         </p>
+
+        {/* בחירת פורמט */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            בחר פורמט קובץ
+          </label>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="fileFormat"
+                value="monthly"
+                checked={fileFormat === 'monthly'}
+                onChange={(e) => setFileFormat(e.target.value)}
+                className="w-4 h-4 text-blue-600"
+              />
+              <span className="text-sm text-gray-700">פורמט חודשי (שורה לכל תנועה)</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="fileFormat"
+                value="yearly"
+                checked={fileFormat === 'yearly'}
+                onChange={(e) => setFileFormat(e.target.value)}
+                className="w-4 h-4 text-blue-600"
+              />
+              <span className="text-sm text-gray-700">פורמט שנתי (עמודות חודשיות)</span>
+            </label>
+          </div>
+        </div>
+
+        {/* הורדת דוגמא */}
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={handleDownloadExample}
+            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors"
+          >
+            📥 הורד פורמט קובץ לדוגמא
+          </button>
+        </div>
 
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -341,6 +586,82 @@ const ReturnUploadTab = ({
           </div>
         </div>
       </div>
+
+      {/* דיאלוג בחירת שנה */}
+      <Dialog
+        open={yearDialogOpen}
+        onClose={() => {
+          setYearDialogOpen(false)
+          setPendingFileData(null)
+          setLoading(false)
+        }}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          fontWeight: 700,
+          pb: 2
+        }}>
+          בחר שנה
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <DialogContentText sx={{ mb: 3, fontSize: '1rem' }}>
+            הקובץ מכיל עמודות חודשיות ללא ציון שנה. אנא בחר לאיזו שנה לשייך את הנתונים.
+          </DialogContentText>
+          <TextField
+            fullWidth
+            type="number"
+            label="שנה"
+            value={selectedYear}
+            onChange={(e) => {
+              const year = parseInt(e.target.value)
+              if (year >= 2000 && year <= 2100) {
+                setSelectedYear(year)
+              }
+            }}
+            inputProps={{
+              min: 2000,
+              max: 2100,
+              step: 1
+            }}
+            variant="outlined"
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button
+            onClick={() => {
+              setYearDialogOpen(false)
+              setPendingFileData(null)
+              setLoading(false)
+            }}
+            sx={{ color: 'text.secondary' }}
+          >
+            ביטול
+          </Button>
+          <Button
+            onClick={handleYearConfirm}
+            variant="contained"
+            sx={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%)',
+              },
+              fontWeight: 700,
+            }}
+          >
+            אישור
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   )
 }

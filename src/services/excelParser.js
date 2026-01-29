@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import { debugExcelStructure } from '../utils/debugExcel'
+import { normalizeIdentifier } from '../utils/maorotUtils'
 
 export const parseExcelFile = (file) => {
   return new Promise((resolve, reject) => {
@@ -148,7 +149,7 @@ export const processExcelData = (rawData) => {
               (parseFloat(row[colPIndex]) || 0) + 
               (parseFloat(row[colQIndex]) || 0),
     // שמירת נתונים נוספים לשימוש בקטגוריות
-    idNumber: String(row[idColIndex] || '').trim(), // מספר זהות
+    idNumber: normalizeIdentifier(row[idColIndex] || ''), // מספר זהות - מנורמל (מסיר אפסים מובילים)
     name: String(row[nameColIndex] || '').trim(), // שם
     date: row[dateColIndex] || '', // תאריך
     rawRow: row,
