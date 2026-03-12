@@ -15,6 +15,60 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
 import Alert from '@mui/material/Alert'
 
+const SummaryCard = ({ title, value, subtitle, accent, icon }) => (
+  <Paper
+    elevation={0}
+    sx={{
+      p: 3,
+      height: '100%',
+      borderRadius: 5,
+      border: '1px solid #e2e8f0',
+      backgroundColor: '#ffffff',
+      boxShadow: '0 12px 30px rgba(15, 23, 42, 0.05)',
+    }}
+  >
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2.5 }}>
+      <Box
+        sx={{
+          width: 52,
+          height: 52,
+          borderRadius: '18px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: accent.main,
+          backgroundColor: accent.soft,
+          border: `1px solid ${accent.border}`,
+        }}
+      >
+        {icon}
+      </Box>
+      <Box
+        sx={{
+          px: 1.25,
+          py: 0.5,
+          borderRadius: 999,
+          fontSize: 12,
+          fontWeight: 700,
+          color: accent.main,
+          backgroundColor: accent.soft,
+        }}
+      >
+        ניהול
+      </Box>
+    </Box>
+    <Typography sx={{ fontSize: 18, fontWeight: 800, color: '#0f172a', mb: 0.5 }}>
+      {value}
+    </Typography>
+    <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#334155', mb: 0.5 }}>
+      {title}
+    </Typography>
+    <Typography sx={{ fontSize: 12, color: '#64748b' }}>
+      {subtitle}
+    </Typography>
+  </Paper>
+)
+
 const FundsManagementPage = () => {
   const [funds, setFunds] = useState([])
   const [editingFund, setEditingFund] = useState(null)
@@ -120,28 +174,91 @@ const FundsManagementPage = () => {
     return defaultFunds.includes(fundValue)
   }
 
+  const stats = [
+    {
+      title: 'סה"כ קרנות',
+      value: `${funds.length}`,
+      subtitle: 'מספר הקרנות שמוגדרות כרגע במערכת',
+      accent: { main: '#0f766e', soft: '#ccfbf1', border: '#99f6e4' },
+      icon: (
+        <svg width="26" height="26" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.7}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.7 0-3 1.3-3 3s1.3 3 3 3 3 1.3 3 3-1.3 3-3 3m0-15c1.4 0 2.7.4 3.8 1M12 8V5m0 14v-3m0 0c-1.4 0-2.7-.4-3.8-1" />
+        </svg>
+      ),
+    },
+    {
+      title: 'קרנות קבועות',
+      value: `${funds.filter((fund) => isDefaultFund(fund)).length}`,
+      subtitle: 'קרנות ברירת מחדל שמוגדרות כקבועות',
+      accent: { main: '#1d4ed8', soft: '#dbeafe', border: '#bfdbfe' },
+      icon: (
+        <svg width="26" height="26" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.7}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    {
+      title: 'מצב הוספה',
+      value: showAddForm ? 'טופס פתוח' : 'מוכן להוספה',
+      subtitle: showAddForm ? 'אפשר להזין קרן חדשה ולשמור' : 'לחץ על הוספת קרן כדי להתחיל',
+      accent: { main: '#7c3aed', soft: '#f3e8ff', border: '#e9d5ff' },
+      icon: (
+        <svg width="26" height="26" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.7}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      ),
+    },
+  ]
+
   return (
-    <Box sx={{ p: 3, background: 'linear-gradient(to bottom, #f5f7fa 0%, #ffffff 100%)', minHeight: '100vh' }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, background: '#f8fafc', minHeight: '100vh' }}>
       <Typography 
         variant="h4" 
         gutterBottom 
         sx={{ 
-          mb: 4, 
-          fontWeight: 700, 
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text'
+          mb: 0.75,
+          fontWeight: 800,
+          color: '#0f172a',
         }}
       >
         ניהול קרנות
       </Typography>
+      <Typography sx={{ mb: 4, fontSize: 14, color: '#64748b' }}>
+        מסך ניהול קרנות במראה חדש, נקי ואחיד עם שאר המערכת.
+      </Typography>
 
-      <Paper elevation={3} sx={{ p: 4 }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+          gap: 2.5,
+          mb: 3,
+        }}
+      >
+        {stats.map((stat) => (
+          <SummaryCard key={stat.title} {...stat} />
+        ))}
+      </Box>
+
+      <Paper
+        elevation={0}
+        sx={{
+          p: { xs: 2.5, md: 3 },
+          borderRadius: 5,
+          border: '1px solid #e2e8f0',
+          backgroundColor: '#ffffff',
+          boxShadow: '0 14px 34px rgba(15, 23, 42, 0.05)',
+        }}
+      >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            רשימת קרנות
-          </Typography>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', mb: 0.5 }}>
+              רשימת קרנות
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: '#64748b' }}>
+              הוסף, ערוך או מחק קרנות מתוך ממשק מסודר וברור
+            </Typography>
+          </Box>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -151,10 +268,15 @@ const FundsManagementPage = () => {
               setSuccess('')
             }}
             sx={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: 3.5,
+              px: 2.5,
+              minHeight: 48,
+              fontWeight: 700,
+              boxShadow: '0 12px 24px rgba(20, 184, 166, 0.22)',
+              background: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 100%)',
               '&:hover': {
-                background: 'linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%)',
-              }
+                background: 'linear-gradient(135deg, #0d9488 0%, #115e59 100%)',
+              },
             }}
           >
             {showAddForm ? 'ביטול' : 'הוסף קרן חדשה'}
@@ -162,22 +284,34 @@ const FundsManagementPage = () => {
         </Box>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 4 }} onClose={() => setError('')}>
             {error}
           </Alert>
         )}
 
         {success && (
-          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+          <Alert severity="success" sx={{ mb: 2, borderRadius: 4 }} onClose={() => setSuccess('')}>
             {success}
           </Alert>
         )}
 
         {/* Add Fund Form */}
         {showAddForm && (
-          <Paper elevation={1} sx={{ p: 3, mb: 3, bgcolor: '#f5f5f5' }}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              mb: 3,
+              bgcolor: '#f8fafc',
+              borderRadius: 4,
+              border: '1px solid #e2e8f0',
+            }}
+          >
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 800, color: '#0f172a' }}>
               הוספת קרן חדשה
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: '#64748b', mb: 2 }}>
+              הזן שם קרן חדש ושמור אותו לרשימה
             </Typography>
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
@@ -191,15 +325,24 @@ const FundsManagementPage = () => {
                   }
                 }}
                 placeholder="הזן שם קרן חדשה"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 3.5,
+                    backgroundColor: '#ffffff',
+                  },
+                }}
               />
               <Button
                 variant="contained"
                 onClick={handleAddFund}
                 sx={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  minWidth: 110,
+                  borderRadius: 3.5,
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 100%)',
                   '&:hover': {
-                    background: 'linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%)',
-                  }
+                    background: 'linear-gradient(135deg, #0d9488 0%, #115e59 100%)',
+                  },
                 }}
               >
                 שמור
@@ -224,13 +367,16 @@ const FundsManagementPage = () => {
               return (
                 <Paper
                   key={index}
-                  elevation={1}
+                  elevation={0}
                   sx={{
-                    p: 2,
+                    p: 2.25,
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    bgcolor: isEditing ? '#f5f5f5' : 'white'
+                    bgcolor: isEditing ? '#f8fafc' : 'white',
+                    borderRadius: 4,
+                    border: '1px solid #e2e8f0',
+                    boxShadow: isEditing ? '0 12px 24px rgba(15, 23, 42, 0.06)' : 'none',
                   }}
                 >
                   {isEditing ? (
@@ -245,16 +391,24 @@ const FundsManagementPage = () => {
                           }
                         }}
                         size="small"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 3,
+                            backgroundColor: '#ffffff',
+                          },
+                        }}
                       />
                       <Button
                         variant="contained"
                         size="small"
                         onClick={handleEditSave}
                         sx={{
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          borderRadius: 3,
+                          fontWeight: 700,
+                          background: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 100%)',
                           '&:hover': {
-                            background: 'linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%)',
-                          }
+                            background: 'linear-gradient(135deg, #0d9488 0%, #115e59 100%)',
+                          },
                         }}
                       >
                         שמור
@@ -274,7 +428,7 @@ const FundsManagementPage = () => {
                   ) : (
                     <>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                        <Typography variant="body1" sx={{ fontWeight: 700, color: '#0f172a' }}>
                           {fundLabel}
                         </Typography>
                         {isDefault && (
@@ -286,7 +440,7 @@ const FundsManagementPage = () => {
                               fontSize: '0.75rem',
                               bgcolor: '#e3f2fd',
                               color: '#1976d2',
-                              borderRadius: 1,
+                              borderRadius: 999,
                               fontWeight: 600
                             }}
                           >
@@ -299,6 +453,11 @@ const FundsManagementPage = () => {
                           color="primary"
                           onClick={() => handleEditStart(fund)}
                           size="small"
+                          sx={{
+                            border: '1px solid #bfdbfe',
+                            backgroundColor: '#eff6ff',
+                            '&:hover': { backgroundColor: '#dbeafe' },
+                          }}
                         >
                           <EditIcon />
                         </IconButton>
@@ -306,6 +465,11 @@ const FundsManagementPage = () => {
                           color="error"
                           onClick={() => handleDeleteFund(fund)}
                           size="small"
+                          sx={{
+                            border: '1px solid #fecaca',
+                            backgroundColor: '#fff1f2',
+                            '&:hover': { backgroundColor: '#ffe4e6' },
+                          }}
                         >
                           <DeleteIcon />
                         </IconButton>

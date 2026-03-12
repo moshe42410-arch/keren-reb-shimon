@@ -45,17 +45,24 @@ const getAccessTokenFromServiceAccount = async () => {
  * @param {number} retries - מספר ניסיונות חוזרים
  * @returns {Promise<Array>} נתונים מהגיליון
  */
-export const readGoogleSheet = async (spreadsheetId, range = 'Sheet1!A:Z', retries = 3) => {
+export const readGoogleSheet = async (spreadsheetId, range = 'Sheet1!A:Z', retries = 3, valueRenderOption = null) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       // אם אין מפתח API, ננסה בלי מפתח (רק אם הגיליון ציבורי)
       let url = `${SHEETS_API_BASE}/${spreadsheetId}/values/${range}`
+      const params = []
       if (API_KEY) {
-        url += `?key=${API_KEY}`
+        params.push(`key=${API_KEY}`)
       } else {
         if (attempt === 1) {
           console.warn('⚠️ אין מפתח API מוגדר. הקריאה תעבוד רק אם הגיליון ציבורי (שיתוף עם "כל מי שיש לו קישור")')
         }
+      }
+      if (valueRenderOption) {
+        params.push(`valueRenderOption=${valueRenderOption}`)
+      }
+      if (params.length > 0) {
+        url += '?' + params.join('&')
       }
       
       if (attempt === 1) {
@@ -327,13 +334,13 @@ export const getSheetNames = async (spreadsheetId) => {
   }
 }
 
-export const fetchAllCategoriesData = async (spreadsheetId) => {
+export const fetchAllCategoriesData = async (spreadsheetId, valueRenderOption = null) => {
   try {
     if (!spreadsheetId) {
       throw new Error('חסר spreadsheetId')
     }
     
-    console.log('קורא את כל הנתונים מ-Google Sheets פעם אחת...')
+    console.log('קורא את כל הנתונים מ-Google Sheets פעם אחת...', valueRenderOption ? `(${valueRenderOption})` : '')
     
     // מקבל את שמות הגיליונות
     const sheetNames = await getSheetNames(spreadsheetId)
@@ -350,7 +357,7 @@ export const fetchAllCategoriesData = async (spreadsheetId) => {
     const range = `${encodedSheetName}!A:Z`
     
     console.log(`משתמש בטווח: ${range}`)
-    const data = await readGoogleSheet(spreadsheetId, range)
+    const data = await readGoogleSheet(spreadsheetId, range, 3, valueRenderOption)
     
     if (!data || data.length === 0) {
       console.warn('לא נמצאו נתונים ב-Google Sheets')

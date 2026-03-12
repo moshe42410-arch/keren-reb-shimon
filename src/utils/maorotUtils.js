@@ -202,9 +202,29 @@ export const RETURN_FILE_MAPPING = {
 /**
  * מנרמל מספר זהות/מזהה - מסיר תווים לא-מספריים ואפסים מובילים
  * כך ש-000123456, 00123456, 123456 יהפכו כולם ל-123456
+ * מטפל גם בפורמט מדעי (scientific notation) כמו "3.19E+08"
  */
 export const normalizeIdentifier = (value) => {
-  const cleaned = normalizeString(value).replace(/\D/g, '')
+  if (value === null || value === undefined) return ''
+
+  // טיפול בסוג מספרי - המרה ישירה למחרוזת מלאה (ללא scientific notation)
+  if (typeof value === 'number' && isFinite(value)) {
+    const str = Math.round(Math.abs(value)).toString()
+    const withoutLeadingZeros = str.replace(/^0+/, '')
+    return withoutLeadingZeros || '0'
+  }
+
+  let str = String(value).trim()
+
+  // טיפול במחרוזת בפורמט מדעי (למשל "3.19E+08", "3.18957875E8")
+  if (/[eE][+-]?\d/.test(str)) {
+    const num = Number(str)
+    if (!isNaN(num) && isFinite(num) && Math.abs(num) < Number.MAX_SAFE_INTEGER) {
+      str = Math.round(Math.abs(num)).toString()
+    }
+  }
+
+  const cleaned = str.replace(/\D/g, '')
   // הסרת אפסים מובילים - אבל שומר על 0 אם המספר הוא רק 0
   if (!cleaned) return ''
   const withoutLeadingZeros = cleaned.replace(/^0+/, '')

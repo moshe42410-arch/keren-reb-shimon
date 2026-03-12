@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx'
 import { debugExcelStructure } from '../utils/debugExcel'
 import { normalizeIdentifier } from '../utils/maorotUtils'
+import { getMovementColumnIndexes, parseFinancialNumber } from '../utils/movementAmounts'
 
 export const parseExcelFile = (file) => {
   return new Promise((resolve, reject) => {
@@ -91,14 +92,12 @@ export const processExcelData = (rawData) => {
     console.log(`נמצאו עמודות עמלה: ${String.fromCharCode(65 + colOIndex)}, ${String.fromCharCode(65 + colPIndex)}, ${String.fromCharCode(65 + colQIndex)}`)
   }
   
-  // מחפש עמודה של סכום
-  let amountColIndex = 3 // ברירת מחדל D (index 3)
-  const amountSearchTerms = ['סכום', 'amount', 'sum', 'סכום התנועה', 'סכום כולל']
-  const foundAmountIndex = findColumnIndex(amountSearchTerms, 3)
-  if (foundAmountIndex !== null) {
-    amountColIndex = foundAmountIndex
-    console.log(`נמצאה עמודת סכום: ${String.fromCharCode(65 + amountColIndex)} (index ${amountColIndex})`)
-  }
+  const movementColumns = getMovementColumnIndexes(headers)
+  let amountColIndex = movementColumns.amountIndex !== -1 ? movementColumns.amountIndex : 1
+  let convertedAmountColIndex = movementColumns.convertedAmountIndex !== -1 ? movementColumns.convertedAmountIndex : 4
+
+  console.log(`נמצאה עמודת סכום: ${String.fromCharCode(65 + amountColIndex)} (index ${amountColIndex})`)
+  console.log(`נמצאה עמודת סכום לאחר המרה: ${String.fromCharCode(65 + convertedAmountColIndex)} (index ${convertedAmountColIndex})`)
   
   // מחפש עמודה של מספר זהות
   // באקסל: מ.ז נמצא בעמודה I (index 8)
@@ -138,23 +137,32 @@ export const processExcelData = (rawData) => {
   // אוסף את כל הנתונים מהשורות (מהשורה השנייה ואילך)
   const rows = rawData.slice(1).filter(row => row && row.length > 0)
   
-  const processedRows = rows.map((row, index) => ({
-    rowIndex: index + 2, // +2 כי השורה הראשונה היא כותרת ואנחנו מתחילים מ-0
-    type: String(row[colGIndex] || '').trim(), // סוג התנועה - עמודה G
-    amount: parseFloat(row[amountColIndex]) || 0, // סכום התנועה
-    feeO: parseFloat(row[colOIndex]) || 0, // עמלה O
-    feeP: parseFloat(row[colPIndex]) || 0, // עמלה P
-    feeQ: parseFloat(row[colQIndex]) || 0, // עמלה Q
-    totalFee: (parseFloat(row[colOIndex]) || 0) + 
-              (parseFloat(row[colPIndex]) || 0) + 
-              (parseFloat(row[colQIndex]) || 0),
+  const processedRows = rows.map((row, index) => {
+    const rawAmount = parseFinancialNumber(row[amountColIndex])
+    const grossAmount = parseFinancialNumber(row[convertedAmountColIndex]) || rawAmount
+    const feeO = parseFinancialNumber(row[colOIndex])
+    const feeP = parseFinancialNumber(row[colPIndex])
+    const feeQ = parseFinancialNumber(row[colQIndex])
+
+    return {
+      rowIndex: index + 2, // +2 כי השורה הראשונה היא כותרת ואנחנו מתחילים מ-0
+      type: String(row[colGIndex] || '').trim(), // סוג התנועה - עמודה G
+      amount: grossAmount, // בסיס הסיכומים: סכום לאחר המרה
+      originalAmount: rawAmount,
+      grossAmount,
+      feeO,
+      feeP,
+      feeQ,
+      overheadAmount: Math.abs(feeO) + Math.abs(feeQ),
+      totalFee: feeO + feeP + feeQ,
     // שמירת נתונים נוספים לשימוש בקטגוריות
-    idNumber: normalizeIdentifier(row[idColIndex] || ''), // מספר זהות - מנורמל (מסיר אפסים מובילים)
-    name: String(row[nameColIndex] || '').trim(), // שם
-    date: row[dateColIndex] || '', // תאריך
-    rawRow: row,
-    headers: headers
-  })).filter(row => row.rawRow && row.rawRow.length > 0) // מסנן שורות ריקות
+      idNumber: normalizeIdentifier(row[idColIndex] || ''), // מספר זהות - מנורמל (מסיר אפסים מובילים)
+      name: String(row[nameColIndex] || '').trim(), // שם
+      date: row[dateColIndex] || '', // תאריך
+      rawRow: row,
+      headers: headers
+    }
+  }).filter(row => row.rawRow && row.rawRow.length > 0) // מסנן שורות ריקות
   
   console.log(`עובד ${processedRows.length} שורות`)
   
@@ -165,6 +173,7 @@ export const processExcelData = (rawData) => {
     columnMapping: {
       type: colGIndex,
       amount: amountColIndex,
+      grossAmount: convertedAmountColIndex,
       feeO: colOIndex,
       feeP: colPIndex,
       feeQ: colQIndex,

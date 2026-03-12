@@ -40,7 +40,7 @@ const AppRoutes = () => {
                   <Routes>
                     <Route path="upload" element={<UploadPage />} />
                     <Route path="summaries" element={<SummariesPage />} />
-                    <Route path="reports" element={<ReportsPage />} />
+                    <Route path="reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
                     <Route path="id-extraction" element={<IDExtractionPage />} />
                     <Route path="funds-management" element={<FundsManagementPage />} />
                     <Route

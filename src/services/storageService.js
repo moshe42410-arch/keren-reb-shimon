@@ -2,6 +2,33 @@
 
 const STORAGE_KEY = 'excel_analyzer_data'
 
+const normalizeFundStorageValue = (fundValue) => {
+  const str = String(fundValue || '').trim()
+  if (!str) return ''
+  return str.split(' - ')[0].trim()
+}
+
+const normalizeMonthStorageValue = (monthValue) => {
+  const str = String(monthValue || '').trim()
+  if (!str) return ''
+
+  if (str.includes('/')) {
+    const [month, year] = str.split('/')
+    if (month && year) {
+      return `${year.trim()}-${month.trim().padStart(2, '0')}`
+    }
+  }
+
+  if (str.includes('-')) {
+    const [year, month] = str.split('-')
+    if (year && month) {
+      return `${year.trim()}-${month.trim().padStart(2, '0')}`
+    }
+  }
+
+  return str
+}
+
 /**
  * שומר נתונים ב-localStorage
  * @param {string} key - מפתח לשמירה
@@ -346,6 +373,24 @@ export const deleteFund = (fundName) => {
  */
 export const saveExcelData = (fund, month, excelData) => {
   const key = `${fund}_${month}`
+
+  const normalizedFund = normalizeFundStorageValue(fund)
+  const normalizedMonth = normalizeMonthStorageValue(month)
+  const existingData = getFromStorage(STORAGE_KEY) || {}
+
+  Object.keys(existingData).forEach((existingKey) => {
+    if (existingKey === 'metadata') return
+
+    const [existingFund, existingMonth] = existingKey.split('_')
+    if (
+      normalizeFundStorageValue(existingFund) === normalizedFund &&
+      normalizeMonthStorageValue(existingMonth) === normalizedMonth
+    ) {
+      delete existingData[existingKey]
+    }
+  })
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(existingData))
   saveToStorage(key, excelData)
   // שומר גם רשימת כל הקרנות והחודשים
   const metadata = getFromStorage('metadata') || { funds: [], months: [] }
@@ -400,15 +445,23 @@ export const getAllMonths = () => {
  */
 export const getDataByDateRange = (fund, startDate, endDate) => {
   const allData = getFromStorage(STORAGE_KEY)
-  const results = []
+  const resultsByMonth = new Map()
   
   if (!allData) return results
+
+  const normalizedStartDate = startDate instanceof Date && !Number.isNaN(startDate.getTime())
+    ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0)
+    : null
+  const normalizedEndDate = endDate instanceof Date && !Number.isNaN(endDate.getTime())
+    ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999)
+    : null
+  const normalizedRequestedFund = normalizeFundStorageValue(fund)
   
   Object.keys(allData).forEach(key => {
     if (key === 'metadata') return
     
     const [keyFund, keyMonth] = key.split('_')
-    if (fund && keyFund !== fund) return
+    if (normalizedRequestedFund && normalizeFundStorageValue(keyFund) !== normalizedRequestedFund) return
     
     let date = null
     // תמיכה בשני פורמטים: YYYY-MM או MM/YYYY
@@ -426,15 +479,36 @@ export const getDataByDateRange = (fund, startDate, endDate) => {
       return
     }
     
-    if (date && !isNaN(date.getTime()) && date >= startDate && date <= endDate) {
-      results.push({
-        fund: keyFund,
-        month: keyMonth,
-        date,
-        data: allData[key].data
-      })
+    if (!date || Number.isNaN(date.getTime())) {
+      return
+    }
+
+    const monthStartDate = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0)
+    const monthEndDate = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999)
+
+    const hasDateOverlap =
+      (!normalizedStartDate || monthEndDate >= normalizedStartDate) &&
+      (!normalizedEndDate || monthStartDate <= normalizedEndDate)
+
+    if (hasDateOverlap) {
+      const normalizedMonthKey = `${keyFund}_${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      const currentTimestamp = new Date(allData[key]?.timestamp || 0).getTime() || 0
+      const existingItem = resultsByMonth.get(normalizedMonthKey)
+      const existingTimestamp = existingItem?.timestamp || 0
+
+      if (!existingItem || currentTimestamp >= existingTimestamp) {
+        resultsByMonth.set(normalizedMonthKey, {
+          fund: keyFund,
+          month: keyMonth,
+          date,
+          data: allData[key].data,
+          timestamp: currentTimestamp
+        })
+      }
     }
   })
   
-  return results.sort((a, b) => a.date - b.date)
+  return Array.from(resultsByMonth.values())
+    .sort((a, b) => a.date - b.date)
+    .map(({ timestamp, ...item }) => item)
 }

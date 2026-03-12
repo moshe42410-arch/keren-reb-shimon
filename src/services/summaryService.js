@@ -3,6 +3,7 @@
 import { getDataByDateRange } from './storageService'
 import { fetchAllCategoriesData } from './googleSheets'
 import { normalizeIdentifier } from '../utils/maorotUtils'
+import { getRowGrossAmount, getRowOverheadAmount } from '../utils/movementAmounts'
 
 /**
  * בודק אם סוג תנועה הוא תרומה
@@ -31,13 +32,24 @@ export const isOverhead = (type) => {
   return typeStr.includes('תקורה') || typeStr.includes('overhead') || typeStr.includes('עמלה') || typeStr === 'תקורות'
 }
 
+export const isSupplierPayment = (type) => {
+  if (!type) return false
+  const typeStr = String(type).trim().toLowerCase()
+  return typeStr.includes('תשלום ספקים') || typeStr.includes('ספקים')
+}
+
 /**
  * בודק אם סוג תנועה הוא תמיכה
  */
 export const isSupport = (type) => {
   if (!type) return false
   const typeStr = String(type).trim().toLowerCase()
-  return typeStr.includes('תמיכות') || typeStr.includes('תמיכה') || typeStr.includes('support') || typeStr === 'תמיכות'
+  return (
+    typeStr.includes('תמיכות') ||
+    typeStr.includes('תמיכה') ||
+    typeStr.includes('support') ||
+    typeStr === 'תמיכות'
+  )
 }
 
 /**
@@ -70,15 +82,12 @@ export const findAllMatchingCategories = (categoriesData, idNumber, date, amount
     const rowId = normalizeIdentifier(row[ID_COL_INDEX])
     if (!rowId) continue
     
-    const idMatches = normalizedIdNumber && rowId && 
-      (rowId === normalizedIdNumber || 
-       rowId.includes(normalizedIdNumber) || 
-       normalizedIdNumber.includes(rowId))
+    const idMatches = normalizedIdNumber && rowId && rowId === normalizedIdNumber
     
     if (!idMatches) continue
     
     // בדיקת תאריך
-    let dateMatches = true
+    let dateMatches = false
     if (date) {
       try {
         const rowDate = row[DATE_COL_INDEX]
@@ -133,12 +142,12 @@ export const findAllMatchingCategories = (categoriesData, idNumber, date, amount
           }
         }
       } catch (dateError) {
-        dateMatches = true
+        dateMatches = false
       }
     }
     
     // בדיקת סכום
-    let amountMatches = true
+    let amountMatches = false
     if (dateMatches && amount && amount > 0) {
       const rowAmount = parseFloat(row[AMOUNT_COL_INDEX]) || 0
       if (rowAmount > 0) {
@@ -219,13 +228,15 @@ export const summarizeByFundAndOrganization = async (fund, startDate, endDate, g
       donations: 0,
       scholarships: 0,
       overheads: 0,
-      supports: 0
+      supports: 0,
+      supplierPayments: 0
     },
     total: {
       donations: 0,
       scholarships: 0,
       overheads: 0,
       supports: 0,
+      supplierPayments: 0,
       supportsByCategory: {},
       totalAmount: 0
     },
@@ -262,6 +273,7 @@ export const summarizeByFundAndOrganization = async (fund, startDate, endDate, g
         scholarships: 0,
         overheads: 0,
         supports: 0,
+        supplierPayments: 0,
         supportsByCategory: {},
         totalAmount: 0
       }
@@ -277,6 +289,7 @@ export const summarizeByFundAndOrganization = async (fund, startDate, endDate, g
         scholarships: 0,
         overheads: 0,
         supports: 0,
+        supplierPayments: 0,
         supportsByCategory: {},
         totalAmount: 0
       }
@@ -289,6 +302,7 @@ export const summarizeByFundAndOrganization = async (fund, startDate, endDate, g
         scholarships: 0,
         overheads: 0,
         supports: 0,
+        supplierPayments: 0,
         supportsByCategory: {},
         totalAmount: 0
       }
@@ -300,34 +314,36 @@ export const summarizeByFundAndOrganization = async (fund, startDate, endDate, g
     const totalSummary = summary.total
     
     for (const row of processedData.rows) {
-      const amount = row.amount || 0
+      const signedMovementAmount = getRowGrossAmount(row)
+      const amount = Math.abs(signedMovementAmount)
+      const overheadAmount = getRowOverheadAmount(row)
       const type = row.type || ''
       
       // סיווג לפי סוג תנועה
       if (isDonation(type)) {
-        fundSummary.donations += amount
-        fundOrgSummary.donations += amount
-        orgSummary.donations += amount
-        totalSummary.donations += amount
-        summary.byTransactionType.donations += amount
+        fundSummary.donations += signedMovementAmount
+        fundOrgSummary.donations += signedMovementAmount
+        orgSummary.donations += signedMovementAmount
+        totalSummary.donations += signedMovementAmount
+        summary.byTransactionType.donations += signedMovementAmount
       } else if (isScholarship(type)) {
-        fundSummary.scholarships += amount
-        fundOrgSummary.scholarships += amount
-        orgSummary.scholarships += amount
-        totalSummary.scholarships += amount
-        summary.byTransactionType.scholarships += amount
-      } else if (isOverhead(type)) {
-        fundSummary.overheads += amount
-        fundOrgSummary.overheads += amount
-        orgSummary.overheads += amount
-        totalSummary.overheads += amount
-        summary.byTransactionType.overheads += amount
+        fundSummary.scholarships += signedMovementAmount
+        fundOrgSummary.scholarships += signedMovementAmount
+        orgSummary.scholarships += signedMovementAmount
+        totalSummary.scholarships += signedMovementAmount
+        summary.byTransactionType.scholarships += signedMovementAmount
+      } else if (isSupplierPayment(type)) {
+        fundSummary.supplierPayments += signedMovementAmount
+        fundOrgSummary.supplierPayments += signedMovementAmount
+        orgSummary.supplierPayments += signedMovementAmount
+        totalSummary.supplierPayments += signedMovementAmount
+        summary.byTransactionType.supplierPayments += signedMovementAmount
       } else if (isSupport(type)) {
-        fundSummary.supports += amount
-        fundOrgSummary.supports += amount
-        orgSummary.supports += amount
-        totalSummary.supports += amount
-        summary.byTransactionType.supports += amount
+        fundSummary.supports += signedMovementAmount
+        fundOrgSummary.supports += signedMovementAmount
+        orgSummary.supports += signedMovementAmount
+        totalSummary.supports += signedMovementAmount
+        summary.byTransactionType.supports += signedMovementAmount
         
         // חיפוש קטגוריה ב-Google Sheets
         if (categoriesData && row.idNumber) {
@@ -352,19 +368,27 @@ export const summarizeByFundAndOrganization = async (fund, startDate, endDate, g
           } else if (matches.length === 1) {
             // קטגוריה יחידה
             const category = matches[0].category
-            fundSummary.supportsByCategory[category] = (fundSummary.supportsByCategory[category] || 0) + amount
-            fundOrgSummary.supportsByCategory[category] = (fundOrgSummary.supportsByCategory[category] || 0) + amount
-            orgSummary.supportsByCategory[category] = (orgSummary.supportsByCategory[category] || 0) + amount
-            totalSummary.supportsByCategory[category] = (totalSummary.supportsByCategory[category] || 0) + amount
-            summary.byCategory[category] = (summary.byCategory[category] || 0) + amount
+            fundSummary.supportsByCategory[category] = (fundSummary.supportsByCategory[category] || 0) + signedMovementAmount
+            fundOrgSummary.supportsByCategory[category] = (fundOrgSummary.supportsByCategory[category] || 0) + signedMovementAmount
+            orgSummary.supportsByCategory[category] = (orgSummary.supportsByCategory[category] || 0) + signedMovementAmount
+            totalSummary.supportsByCategory[category] = (totalSummary.supportsByCategory[category] || 0) + signedMovementAmount
+            summary.byCategory[category] = (summary.byCategory[category] || 0) + signedMovementAmount
           }
         }
       }
+
+      if (overheadAmount > 0) {
+        fundSummary.overheads += overheadAmount
+        fundOrgSummary.overheads += overheadAmount
+        orgSummary.overheads += overheadAmount
+        totalSummary.overheads += overheadAmount
+        summary.byTransactionType.overheads += overheadAmount
+      }
       
-      fundSummary.totalAmount += amount
-      fundOrgSummary.totalAmount += amount
-      orgSummary.totalAmount += amount
-      totalSummary.totalAmount += amount
+      fundSummary.totalAmount += signedMovementAmount
+      fundOrgSummary.totalAmount += signedMovementAmount
+      orgSummary.totalAmount += signedMovementAmount
+      totalSummary.totalAmount += signedMovementAmount
     }
   }
   

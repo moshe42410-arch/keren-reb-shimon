@@ -39,7 +39,7 @@ const COLORS = [
   '#1e3a8a',
   '#059669',
   '#dc2626',
-  '#7c3aed',
+  '#0891b2',
   '#ea580c',
   '#0891b2',
   '#be185d',
@@ -393,8 +393,8 @@ const UnifiedSummariesPage = () => {
                   <TextField
                     label="תאריך התחלה"
                     type="date"
-                    value={startDate ? startDate.toISOString().split('T')[0] : ''}
-                    onChange={(e) => setStartDate(new Date(e.target.value))}
+                    value={startDate instanceof Date && !Number.isNaN(startDate.getTime()) ? startDate.toISOString().split('T')[0] : ''}
+                    onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : null)}
                     InputLabelProps={{ shrink: true }}
                     fullWidth
                   />
@@ -403,8 +403,8 @@ const UnifiedSummariesPage = () => {
                   <TextField
                     label="תאריך סיום"
                     type="date"
-                    value={endDate ? endDate.toISOString().split('T')[0] : ''}
-                    onChange={(e) => setEndDate(new Date(e.target.value))}
+                    value={endDate instanceof Date && !Number.isNaN(endDate.getTime()) ? endDate.toISOString().split('T')[0] : ''}
+                    onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : null)}
                     InputLabelProps={{ shrink: true }}
                     fullWidth
                   />
@@ -528,7 +528,7 @@ const UnifiedSummariesPage = () => {
                 onClick={handleApplyFilters}
                 fullWidth
                 sx={{
-                  background: '#667eea',
+                  background: '#0891b2',
                   fontWeight: 700,
                   py: 1.5,
                   '&:hover': {
@@ -578,7 +578,7 @@ const UnifiedSummariesPage = () => {
                   }}
                 >
                   <CardContent>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#667eea', mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#0891b2', mb: 2 }}>
                       סיכום לפי עמותה
                     </Typography>
                     <ResponsiveContainer width="100%" height={360}>
@@ -629,7 +629,7 @@ const UnifiedSummariesPage = () => {
                   }}
                 >
                   <CardContent>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#667eea', mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#0891b2', mb: 2 }}>
                       סיכום לפי מסגרת
                     </Typography>
                     <ResponsiveContainer width="100%" height={360}>
@@ -680,7 +680,7 @@ const UnifiedSummariesPage = () => {
                   }}
                 >
                   <CardContent>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#667eea', mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#0891b2', mb: 2 }}>
                       סיכום לפי קטגוריה
                     </Typography>
                     <ResponsiveContainer width="100%" height={360}>

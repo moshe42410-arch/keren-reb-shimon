@@ -12,11 +12,66 @@ import TableCell from '@mui/material/TableCell'
 import TableContainer from '@mui/material/TableContainer'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
+import Grid from '@mui/material/Grid'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import DeleteIcon from '@mui/icons-material/Delete'
 import DownloadIcon from '@mui/icons-material/Download'
 import { createWorker } from 'tesseract.js'
+
+const StatCard = ({ title, value, subtitle, accent, icon }) => (
+  <Paper
+    elevation={0}
+    sx={{
+      p: 3,
+      height: '100%',
+      borderRadius: 5,
+      border: '1px solid #e2e8f0',
+      backgroundColor: '#ffffff',
+      boxShadow: '0 12px 30px rgba(15, 23, 42, 0.05)',
+    }}
+  >
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2.5 }}>
+      <Box
+        sx={{
+          width: 52,
+          height: 52,
+          borderRadius: '18px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: accent.main,
+          backgroundColor: accent.soft,
+          border: `1px solid ${accent.border}`,
+        }}
+      >
+        {icon}
+      </Box>
+      <Box
+        sx={{
+          px: 1.25,
+          py: 0.5,
+          borderRadius: 999,
+          fontSize: 12,
+          fontWeight: 700,
+          color: accent.main,
+          backgroundColor: accent.soft,
+        }}
+      >
+        OCR
+      </Box>
+    </Box>
+    <Typography sx={{ fontSize: 18, fontWeight: 800, color: '#0f172a', mb: 0.5 }}>
+      {value}
+    </Typography>
+    <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#334155', mb: 0.5 }}>
+      {title}
+    </Typography>
+    <Typography sx={{ fontSize: 12, color: '#64748b' }}>
+      {subtitle}
+    </Typography>
+  </Paper>
+)
 
 const IDExtractionPage = () => {
   const [image, setImage] = useState(null)
@@ -253,44 +308,118 @@ const IDExtractionPage = () => {
     exportToExcel(dataToExport, 'חילוץ תעודת זהות', `חילוץ_תעודת_זהות_${dateStr}.xlsx`)
   }
 
+  const stats = [
+    {
+      title: 'קובץ פעיל',
+      value: image ? image.name : 'עדיין לא נבחר',
+      subtitle: image ? 'הקובץ מוכן לעיבוד OCR' : 'העלה תמונה או PDF כדי להתחיל',
+      accent: { main: '#0f766e', soft: '#ccfbf1', border: '#99f6e4' },
+      icon: (
+        <svg width="26" height="26" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.7}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75h6.69a1.5 1.5 0 011.06.44l3.06 3.06a1.5 1.5 0 01.44 1.06v10.44a1.5 1.5 0 01-1.5 1.5H7.5a1.5 1.5 0 01-1.5-1.5V5.25a1.5 1.5 0 011.5-1.5z" />
+        </svg>
+      ),
+    },
+    {
+      title: 'רשומות שחולצו',
+      value: `${extractedData.length}`,
+      subtitle: 'כמות הרשומות שמוכנות לייצוא',
+      accent: { main: '#1d4ed8', soft: '#dbeafe', border: '#bfdbfe' },
+      icon: (
+        <svg width="26" height="26" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.7}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 7.5h9m-9 4.5h9m-9 4.5H12m7.5-10.5h-15A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h15a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0019.5 6z" />
+        </svg>
+      ),
+    },
+    {
+      title: 'מצב עיבוד',
+      value: processing ? 'מעבד כעת' : 'מוכן לעבודה',
+      subtitle: processing ? 'המערכת מפענחת את הקובץ ברקע' : 'אפשר להעלות או להוריד נתונים',
+      accent: { main: '#7c3aed', soft: '#f3e8ff', border: '#e9d5ff' },
+      icon: (
+        <svg width="26" height="26" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.7}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+  ]
+
   return (
-    <Box sx={{ p: 3, background: 'linear-gradient(to bottom, #f5f7fa 0%, #ffffff 100%)', minHeight: '100vh' }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, background: '#f8fafc', minHeight: '100vh' }}>
       <Typography 
         variant="h4" 
         gutterBottom 
         sx={{ 
-          mb: 4, 
-          fontWeight: 700, 
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text'
+          mb: 0.75,
+          fontWeight: 800,
+          color: '#0f172a',
         }}
       >
         חילוץ מתעודת זהות
       </Typography>
+      <Typography sx={{ mb: 4, fontSize: 14, color: '#64748b' }}>
+        העלאה, פענוח וייצוא של נתוני תעודת זהות בעיצוב חדש, ברור ונוח יותר לעבודה.
+      </Typography>
 
-      <Paper elevation={3} sx={{ p: 4, mb: 4 }}>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          העלה תמונה או PDF של ספח תעודת זהות לחילוץ אוטומטי של: שמות, מספרי זהות ותאריכי לידה
-        </Typography>
+      <Grid container spacing={2.5} sx={{ mb: 3 }}>
+        {stats.map((stat) => (
+          <Grid item xs={12} md={4} key={stat.title}>
+            <StatCard {...stat} />
+          </Grid>
+        ))}
+      </Grid>
+
+      <Paper
+        elevation={0}
+        sx={{
+          p: { xs: 2.5, md: 3 },
+          mb: 4,
+          borderRadius: 5,
+          border: '1px solid #e2e8f0',
+          backgroundColor: '#ffffff',
+          boxShadow: '0 14px 34px rgba(15, 23, 42, 0.05)',
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+          <Box>
+            <Typography sx={{ fontSize: 18, fontWeight: 800, color: '#0f172a', mb: 0.5 }}>
+              העלאת מסמך
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: '#64748b' }}>
+              העלה תמונה או PDF של ספח תעודת זהות לחילוץ אוטומטי של שמות, מספרי זהות ותאריכי לידה.
+            </Typography>
+          </Box>
+          <Box
+            sx={{
+              px: 1.5,
+              py: 0.75,
+              borderRadius: 999,
+              backgroundColor: '#eff6ff',
+              color: '#1d4ed8',
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            תמונות ו־PDF
+          </Box>
+        </Box>
 
         {/* Upload Area */}
         <Paper
-          elevation={2}
+          elevation={0}
           sx={{
             border: '2px dashed',
-            borderColor: preview ? 'primary.main' : 'grey.300',
-            borderRadius: 2,
-            p: 4,
+            borderColor: preview ? '#14b8a6' : '#cbd5e1',
+            borderRadius: 5,
+            p: { xs: 3, md: 5 },
             textAlign: 'center',
             cursor: 'pointer',
-            transition: 'all 0.3s ease',
-            backgroundColor: preview ? 'action.hover' : 'background.paper',
+            transition: 'all 0.2s ease',
+            background: preview ? 'linear-gradient(135deg, #ecfeff 0%, #f0fdfa 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
             '&:hover': {
-              borderColor: 'primary.main',
-              backgroundColor: 'action.hover'
-            }
+              borderColor: '#14b8a6',
+              background: 'linear-gradient(135deg, #f8fafc 0%, #f0fdfa 100%)',
+            },
           }}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -314,14 +443,14 @@ const IDExtractionPage = () => {
                   sx={{
                     maxWidth: '100%',
                     maxHeight: '400px',
-                    borderRadius: 2,
+                    borderRadius: 4,
                     mb: 2,
-                    boxShadow: 2
+                    boxShadow: '0 18px 34px rgba(15, 23, 42, 0.12)',
                   }}
                 />
               ) : (
                 <Box sx={{ py: 4 }}>
-                  <Typography variant="h6" color="text.secondary">
+                  <Typography variant="h6" sx={{ color: '#334155', fontWeight: 700 }}>
                     קובץ PDF: {image?.name}
                   </Typography>
                 </Box>
@@ -338,7 +467,7 @@ const IDExtractionPage = () => {
                     fileInputRef.current.value = ''
                   }
                 }}
-                sx={{ mt: 2 }}
+                sx={{ mt: 2, borderRadius: 3, px: 3, fontWeight: 700 }}
               >
                 הסר קובץ
               </Button>
@@ -353,7 +482,7 @@ const IDExtractionPage = () => {
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2"
-                  style={{ margin: '0 auto', color: '#667eea' }}
+                  style={{ margin: '0 auto', color: '#0f766e' }}
                 >
                   <path
                     d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"
@@ -362,13 +491,13 @@ const IDExtractionPage = () => {
                   />
                 </svg>
               </Box>
-              <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+              <Typography variant="h6" sx={{ mb: 1, color: '#334155', fontWeight: 700 }}>
                 לחץ להעלאת תמונה או PDF
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{ color: '#64748b' }}>
                 או גרור ושחרר קובץ כאן
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#94a3b8' }}>
                 PNG, JPG, PDF עד 10MB
               </Typography>
             </>
@@ -385,12 +514,15 @@ const IDExtractionPage = () => {
               disabled={loading || processing}
               sx={{
                 px: 6,
-                py: 1.5,
-                fontSize: '1.1rem',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                py: 1.6,
+                fontSize: '1rem',
+                fontWeight: 700,
+                borderRadius: 3.5,
+                boxShadow: '0 12px 24px rgba(20, 184, 166, 0.22)',
+                background: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 100%)',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%)',
-                }
+                  background: 'linear-gradient(135deg, #0d9488 0%, #115e59 100%)',
+                },
               }}
             >
               {loading || processing ? (
@@ -406,13 +538,13 @@ const IDExtractionPage = () => {
         )}
 
         {error && (
-          <Alert severity="error" sx={{ mt: 3 }}>
+          <Alert severity="error" sx={{ mt: 3, borderRadius: 4 }}>
             {error}
           </Alert>
         )}
 
         {processing && (
-          <Alert severity="info" sx={{ mt: 2 }}>
+          <Alert severity="info" sx={{ mt: 2, borderRadius: 4 }}>
             מנתח תמונה... זה עלול לקחת מספר שניות
           </Alert>
         )}
@@ -420,43 +552,76 @@ const IDExtractionPage = () => {
 
       {/* Results Table */}
       {extractedData.length > 0 && (
-        <Paper elevation={3} sx={{ p: 3 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 2.5, md: 3 },
+            borderRadius: 5,
+            border: '1px solid #e2e8f0',
+            backgroundColor: '#ffffff',
+            boxShadow: '0 14px 34px rgba(15, 23, 42, 0.05)',
+          }}
+        >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: '#667eea' }}>
-              נתונים שחולצו ({extractedData.length})
-            </Typography>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', mb: 0.5 }}>
+                נתונים שחולצו ({extractedData.length})
+              </Typography>
+              <Typography sx={{ fontSize: 13, color: '#64748b' }}>
+                אפשר לעבור על הנתונים לפני הורדה ל־Excel
+              </Typography>
+            </Box>
             <Button
               variant="contained"
               startIcon={<DownloadIcon />}
               onClick={handleDownload}
               sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: 3.5,
+                fontWeight: 700,
+                minHeight: 48,
+                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                boxShadow: '0 12px 24px rgba(37, 99, 235, 0.2)',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%)',
-                }
+                  background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)',
+                },
               }}
             >
               הורד Excel
             </Button>
           </Box>
 
-          <TableContainer>
+          <TableContainer
+            sx={{
+              borderRadius: 4,
+              border: '1px solid #e2e8f0',
+              overflow: 'hidden',
+            }}
+          >
             <Table>
               <TableHead>
-                <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                  <TableCell sx={{ fontWeight: 700 }}>שם</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>שם באנגלית</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>מספר זהות</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>תאריך לידה</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>פעולות</TableCell>
+                <TableRow sx={{ backgroundColor: '#f8fafc' }}>
+                  <TableCell sx={{ fontWeight: 800, color: '#475569' }}>שם</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: '#475569' }}>שם באנגלית</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: '#475569' }}>מספר זהות</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: '#475569' }}>תאריך לידה</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: '#475569' }}>פעולות</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {extractedData.map((item) => (
-                  <TableRow key={item.id} hover>
+                {extractedData.map((item, index) => (
+                  <TableRow
+                    key={item.id}
+                    hover
+                    sx={{
+                      backgroundColor: index % 2 === 0 ? '#ffffff' : '#fbfdff',
+                      '& td': {
+                        borderBottomColor: '#edf2f7',
+                      },
+                    }}
+                  >
                     <TableCell>{item.name || '-'}</TableCell>
-                    <TableCell>{item.nameEnglish || '-'}</TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                    <TableCell sx={{ color: '#64748b' }}>{item.nameEnglish || '-'}</TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontWeight: 700, color: '#0f172a' }}>
                       {item.idNumber || '-'}
                     </TableCell>
                     <TableCell>{item.birthDate || '-'}</TableCell>
@@ -466,6 +631,13 @@ const IDExtractionPage = () => {
                           size="small"
                           color="error"
                           onClick={() => handleDelete(item.id)}
+                          sx={{
+                            border: '1px solid #fecaca',
+                            backgroundColor: '#fff1f2',
+                            '&:hover': {
+                              backgroundColor: '#ffe4e6',
+                            },
+                          }}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>

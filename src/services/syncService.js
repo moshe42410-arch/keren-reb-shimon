@@ -1,4 +1,5 @@
 // שירות לסנכרון נתונים בין Excel ל-Google Sheets
+import { normalizeIdentifier } from '../utils/maorotUtils'
 
 /**
  * יוצר מזהה ייחודי (Unique Key) לשורה
@@ -29,6 +30,14 @@ export const extractMonthFromDate = (dateValue) => {
   if (!dateValue) return ''
   
   try {
+    const normalizeMonthYearParts = (month, year) => {
+      const parsedMonth = parseInt(month, 10)
+      const parsedYear = parseInt(year, 10)
+      if (!parsedMonth || !parsedYear) return ''
+      const fullYear = parsedYear < 100 ? 2000 + parsedYear : parsedYear
+      return `${fullYear}-${String(parsedMonth).padStart(2, '0')}`
+    }
+
     let dateObj = null
     
     if (typeof dateValue === 'string') {
@@ -37,10 +46,8 @@ export const extractMonthFromDate = (dateValue) => {
       // פורמט חודש/שנה או חודש.שנה (למשל: 1/26, 01/2026, 1.26)
       if (dateStr.match(/^\d{1,2}[\/\-\.,]\d{2,4}$/)) {
         const parts = dateStr.split(/[\/\-\.,]/)
-        const month = parseInt(parts[0])
-        const year = parseInt(parts[1])
-        const fullYear = year < 100 ? 2000 + year : year
-        dateObj = new Date(fullYear, month - 1, 1)
+        const normalized = normalizeMonthYearParts(parts[0], parts[1])
+        if (normalized) return normalized
       }
       // פורמט YYYY-MM
       else if (dateStr.match(/^\d{4}-\d{2}$/)) {
@@ -56,10 +63,20 @@ export const extractMonthFromDate = (dateValue) => {
         dateObj = new Date(dateValue)
       }
     } else if (typeof dateValue === 'number') {
-      // אם זה מספר אקסל של תאריך
+      // ב-Google Sheets לעיתים חודש נשמר כמספר בסגנון 1.2026 או 1/2026 שהומר למספר 1.2026
+      const numericString = String(dateValue)
+      if (numericString.match(/^\d{1,2}\.\d{2,4}$/)) {
+        const parts = numericString.split('.')
+        const normalized = normalizeMonthYearParts(parts[0], parts[1])
+        if (normalized) return normalized
+      }
+
+      // אם זה מספר אקסל של תאריך, מתעלמים מרכיב השעה כדי למנוע זליגה בין חודשים בגלל timezone
       if (dateValue < 100000) {
-        // זה כנראה מספר אקסל של תאריך (מספר ימים מ-1/1/1900)
-        dateObj = new Date((dateValue - 25569) * 86400 * 1000)
+        const wholeDays = Math.floor(dateValue)
+        const excelEpochUtc = Date.UTC(1899, 11, 30)
+        const utcDate = new Date(excelEpochUtc + wholeDays * 86400000)
+        dateObj = new Date(utcDate.getUTCFullYear(), utcDate.getUTCMonth(), utcDate.getUTCDate())
       } else {
         // זה כנראה timestamp
         dateObj = new Date(dateValue)
