@@ -178,7 +178,7 @@ const FileUploader = () => {
 
   return (
     <Box>
-      <Typography variant="h6" gutterBottom sx={{ mb: 3, fontWeight: 600, color: '#2e7d32' }}>
+      <Typography variant="h6" gutterBottom sx={{ mb: 3, fontWeight: 700, color: '#111827', fontSize: '1.1rem' }}>
         העלאת קובץ Excel חודשי
       </Typography>
       
@@ -244,10 +244,13 @@ const FileUploader = () => {
                 }
               }}
               sx={{
-                background: '#4caf50',
+                background: '#0d9488',
                 '&:hover': {
-                  background: '#45a049',
+                  background: '#0f766e',
                 },
+                borderRadius: '10px',
+                textTransform: 'none',
+                fontWeight: 600,
                 mt: 1,
               }}
             >
@@ -261,8 +264,10 @@ const FileUploader = () => {
                 setFund('')
               }}
               sx={{
-                borderColor: '#ccc',
-                color: '#666',
+                borderColor: '#d1d5db',
+                color: '#6b7280',
+                borderRadius: '10px',
+                textTransform: 'none',
                 mt: 1,
               }}
             >
@@ -297,16 +302,16 @@ const FileUploader = () => {
             sx={{ 
               mr: 2,
               padding: '10px 24px',
-              borderColor: '#4caf50',
-              color: '#4caf50',
-              borderRadius: '12px',
+              borderColor: '#0d9488',
+              color: '#0d9488',
+              borderRadius: '10px',
               fontWeight: 600,
+              textTransform: 'none',
               '&:hover': {
-                borderColor: '#45a049',
-                background: 'rgba(76, 175, 80, 0.1)',
-                transform: 'translateY(-2px)',
+                borderColor: '#0f766e',
+                background: 'rgba(13, 148, 136, 0.06)',
               },
-              transition: 'all 0.3s ease',
+              transition: 'all 0.15s ease',
             }}
           >
             בחר קובץ Excel
@@ -338,23 +343,24 @@ const FileUploader = () => {
         disabled={loading || !file || !fund || !month}
         startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <CloudUploadIcon />}
         sx={{
-          background: '#4caf50',
+          background: 'linear-gradient(135deg, #0d9488, #0f766e)',
           color: 'white',
           padding: '12px 32px',
-          fontSize: '1.1rem',
+          fontSize: '1rem',
           fontWeight: 600,
-          borderRadius: '12px',
-          boxShadow: '0 4px 15px rgba(76, 175, 80, 0.4)',
+          borderRadius: '10px',
+          textTransform: 'none',
+          boxShadow: '0 2px 8px rgba(13, 148, 136, 0.25)',
           '&:hover': {
-            background: '#45a049',
-            boxShadow: '0 6px 20px rgba(76, 175, 80, 0.6)',
-            transform: 'translateY(-2px)',
+            background: 'linear-gradient(135deg, #0f766e, #115e59)',
+            boxShadow: '0 4px 12px rgba(13, 148, 136, 0.35)',
           },
           '&:disabled': {
-            background: '#ccc',
-            color: '#666',
+            background: '#e5e7eb',
+            color: '#9ca3af',
+            boxShadow: 'none',
           },
-          transition: 'all 0.3s ease',
+          transition: 'all 0.15s ease',
         }}
       >
         {loading ? 'מעבד...' : 'עבד קובץ'}

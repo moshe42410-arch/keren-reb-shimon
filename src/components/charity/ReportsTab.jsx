@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
-import Paper from '@mui/material/Paper'
 import Button from '@mui/material/Button'
 import MenuItem from '@mui/material/MenuItem'
 import Select from '@mui/material/Select'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import TextField from '@mui/material/TextField'
-import DownloadIcon from '@mui/icons-material/Download'
 import CircularProgress from '@mui/material/CircularProgress'
-import Alert from '@mui/material/Alert'
 import { getAllFundsWithLabels } from '../../services/storageService'
 import { summarizeByFundAndOrganization } from '../../services/summaryService'
 import { exportToExcel } from '../../services/exportUtils'
@@ -35,8 +32,6 @@ const ReportsTab = () => {
   useEffect(() => {
     const existingFunds = getAllFundsWithLabels()
     setFunds(existingFunds)
-    
-    // ברירת מחדל: חודש זה
     const now = new Date()
     setStartDate(new Date(now.getFullYear(), now.getMonth(), 1))
     setEndDate(now)
@@ -45,7 +40,6 @@ const ReportsTab = () => {
   const handleDateRangeChange = (value) => {
     setDateRange(value)
     const now = new Date()
-    
     switch (value) {
       case 'year':
         setStartDate(new Date(now.getFullYear(), 0, 1))
@@ -71,11 +65,9 @@ const ReportsTab = () => {
       setError('אנא בחר טווח תאריכים')
       return
     }
-
     setLoading(true)
     setError(null)
     setSummaries(null)
-
     try {
       const summary = await summarizeByFundAndOrganization(
         selectedFund || null,
@@ -83,10 +75,7 @@ const ReportsTab = () => {
         endDate,
         googleSheetsId
       )
-      
       setSummaries(summary)
-      
-      // אם יש קונפליקטים, מציג אותם אחד אחד
       if (summary.conflicts && summary.conflicts.length > 0) {
         handleConflicts(summary.conflicts)
       }
@@ -111,16 +100,13 @@ const ReportsTab = () => {
       ...conflictResolutions,
       [conflictKey]: selectedCategory
     })
-    
     setConflictModalOpen(false)
-    
     if (summaries && summaries.conflicts) {
       const resolvedKeys = Object.keys(conflictResolutions)
       const nextConflict = summaries.conflicts.find(c => {
         const key = `${c.idNumber}_${c.date}_${c.amount}`
         return !resolvedKeys.includes(key) && key !== conflictKey
       })
-      
       if (nextConflict) {
         setCurrentConflict(nextConflict)
         setConflictModalOpen(true)
@@ -133,37 +119,30 @@ const ReportsTab = () => {
       setError('אנא צור דוח תחילה')
       return
     }
-
     try {
       let data = []
       let filename = ''
-
       switch (reportType) {
         case 'summary':
-          // דוח סיכום כללי
           data = [
-            { 'סוג': 'תרומות', 'סכום': summaries.total.donations },
-            { 'סוג': 'מלגות', 'סכום': summaries.total.scholarships },
-            { 'סוג': 'תקורות', 'סכום': summaries.total.overheads },
-            { 'סוג': 'תמיכות', 'סכום': summaries.total.supports },
-            { 'סוג': 'סה"כ כללי', 'סכום': summaries.total.totalAmount },
+            { 'סוג': 'תרומות', 'סכום': summaries.total?.donations },
+            { 'סוג': 'מלגות', 'סכום': summaries.total?.scholarships },
+            { 'סוג': 'תקורות', 'סכום': summaries.total?.overheads },
+            { 'סוג': 'תמיכות', 'סכום': summaries.total?.supports },
+            { 'סוג': 'סה"כ כללי', 'סכום': summaries.total?.totalAmount },
           ]
           filename = `דוח_סיכום_${selectedFund || 'כל_הקרנות'}_${new Date().toISOString().split('T')[0]}.xlsx`
           break
-
         case 'supportsByCategory':
-          // תמיכות לפי קטגוריות
-          data = Object.entries(summaries.total.supportsByCategory).map(([category, amount]) => ({
+          data = Object.entries(summaries.total?.supportsByCategory || {}).map(([category, amount]) => ({
             'קטגוריה': category,
             'סכום': amount
           }))
           filename = `דוח_תמיכות_לפי_קטגוריות_${selectedFund || 'כל_הקרנות'}_${new Date().toISOString().split('T')[0]}.xlsx`
           break
-
         case 'byOrganization':
-          // דוח לפי ארגון
           data = []
-          Object.entries(summaries.byOrganization).forEach(([org, orgData]) => {
+          Object.entries(summaries.byOrganization || {}).forEach(([org, orgData]) => {
             if (orgData.totalAmount > 0) {
               data.push({ 'ארגון': org, 'סוג': 'תרומות', 'סכום': orgData.donations })
               data.push({ 'ארגון': org, 'סוג': 'מלגות', 'סכום': orgData.scholarships })
@@ -174,11 +153,9 @@ const ReportsTab = () => {
           })
           filename = `דוח_לפי_ארגון_${selectedFund || 'כל_הקרנות'}_${new Date().toISOString().split('T')[0]}.xlsx`
           break
-
         default:
           data = []
       }
-
       if (data.length > 0) {
         exportToExcel(data, 'דוח', filename)
       } else {
@@ -191,21 +168,25 @@ const ReportsTab = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h5" gutterBottom sx={{ mb: 3, fontWeight: 600, color: '#2e7d32' }}>
-        דוחות והורדות
-      </Typography>
+    <div dir="rtl">
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-1">דוחות והורדות</h2>
+        <p className="text-sm text-gray-400">יצירת דוחות וייצוא לקבצי Excel</p>
+      </div>
 
-      <Paper elevation={3} sx={{ p: 3, mb: 3, background: '#f9fff9' }}>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel>טווח תאריכים</InputLabel>
+      {/* Filter Card */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-6 shadow-sm" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.04)' }}>
+        <div className="flex flex-wrap gap-4 items-end">
+          <FormControl size="small" sx={{ minWidth: 170 }}>
+            <InputLabel sx={{ fontSize: '0.85rem' }}>טווח תאריכים</InputLabel>
             <Select
               value={dateRange}
               label="טווח תאריכים"
               onChange={(e) => handleDateRangeChange(e.target.value)}
+              sx={{ borderRadius: '12px', fontSize: '0.85rem', '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e5e7eb' } }}
             >
-              <MenuItem value="custom">טווח לפי בחירת הלקוח</MenuItem>
+              <MenuItem value="custom">טווח מותאם</MenuItem>
               <MenuItem value="year">מתחילת השנה</MenuItem>
               <MenuItem value="lastMonth">חודש קודם</MenuItem>
               <MenuItem value="thisMonth">חודש זה</MenuItem>
@@ -215,30 +196,33 @@ const ReportsTab = () => {
           {dateRange === 'custom' && (
             <>
               <TextField
-                label="תאריך התחלה"
+                label="מ-תאריך"
                 type="date"
+                size="small"
                 value={startDate ? startDate.toISOString().split('T')[0] : ''}
                 onChange={(e) => setStartDate(new Date(e.target.value))}
                 InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: 200 }}
+                sx={{ minWidth: 150, '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
               />
               <TextField
-                label="תאריך סיום"
+                label="עד-תאריך"
                 type="date"
+                size="small"
                 value={endDate ? endDate.toISOString().split('T')[0] : ''}
                 onChange={(e) => setEndDate(new Date(e.target.value))}
                 InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: 200 }}
+                sx={{ minWidth: 150, '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
               />
             </>
           )}
 
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel>סוג דוח</InputLabel>
+          <FormControl size="small" sx={{ minWidth: 170 }}>
+            <InputLabel sx={{ fontSize: '0.85rem' }}>סוג דוח</InputLabel>
             <Select
               value={reportType}
               label="סוג דוח"
               onChange={(e) => setReportType(e.target.value)}
+              sx={{ borderRadius: '12px', fontSize: '0.85rem', '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e5e7eb' } }}
             >
               <MenuItem value="summary">סיכום כללי</MenuItem>
               <MenuItem value="supportsByCategory">תמיכות לפי קטגוריות</MenuItem>
@@ -246,72 +230,97 @@ const ReportsTab = () => {
             </Select>
           </FormControl>
 
-          <FormControl sx={{ minWidth: 250 }}>
-            <InputLabel>קרן (אופציונלי)</InputLabel>
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel sx={{ fontSize: '0.85rem' }}>קרן</InputLabel>
             <Select
               value={selectedFund}
-              label="קרן (אופציונלי)"
+              label="קרן"
               onChange={(e) => setSelectedFund(e.target.value)}
+              sx={{ borderRadius: '12px', fontSize: '0.85rem', '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e5e7eb' } }}
             >
               <MenuItem value="">כל הקרנות</MenuItem>
               {funds.map((f) => {
-                const fundValue = typeof f === 'string' ? f : f.value
-                const fundLabel = typeof f === 'string' ? f : f.label
-                return (
-                  <MenuItem key={fundValue} value={fundValue}>
-                    {fundLabel}
-                  </MenuItem>
-                )
+                const fv = typeof f === 'string' ? f : f.value
+                const fl = typeof f === 'string' ? f : f.label
+                return <MenuItem key={fv} value={fv}>{fl}</MenuItem>
               })}
             </Select>
           </FormControl>
 
-          <Button
-            variant="contained"
-            onClick={handleGenerateReport}
-            disabled={loading}
-            sx={{
-              background: '#4caf50',
-              '&:hover': {
-                background: '#45a049',
-              },
-            }}
-          >
-            {loading ? <CircularProgress size={24} color="inherit" /> : 'צור דוח'}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="contained"
+              onClick={handleGenerateReport}
+              disabled={loading}
+              sx={{
+                background: 'linear-gradient(135deg, #0d9488, #0f766e)',
+                borderRadius: '12px',
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+                py: 1.1,
+                boxShadow: '0 4px 12px rgba(13, 148, 136, 0.25)',
+                '&:hover': { background: 'linear-gradient(135deg, #0f766e, #115e59)' },
+              }}
+            >
+              {loading ? <CircularProgress size={20} color="inherit" /> : 'צור דוח'}
+            </Button>
 
-          <Button
-            variant="contained"
-            startIcon={<DownloadIcon />}
-            onClick={handleDownload}
-            disabled={!summaries || loading}
-            sx={{
-              background: '#2196f3',
-              '&:hover': {
-                background: '#1976d2',
-              },
-            }}
-          >
-            הורד Excel
-          </Button>
-        </Box>
-      </Paper>
+            <Button
+              variant="contained"
+              onClick={handleDownload}
+              disabled={!summaries || loading}
+              startIcon={
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+              }
+              sx={{
+                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                borderRadius: '12px',
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 3,
+                py: 1.1,
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
+                '&:hover': { background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' },
+                '&:disabled': { background: '#e5e7eb', color: '#9ca3af', boxShadow: 'none' },
+              }}
+            >
+              הורד Excel
+            </Button>
+          </div>
+        </div>
+      </div>
 
+      {/* Error */}
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
+        <div className="mb-5 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3">
+          <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <span className="text-sm text-red-700">{error}</span>
+        </div>
       )}
 
+      {/* Report Ready */}
       {summaries && (
-        <Paper elevation={3} sx={{ p: 3, background: '#ffffff' }}>
-          <Typography variant="h6" gutterBottom>
-            תצוגה מקדימה של הדוח
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            הדוח מוכן להורדה. לחץ על "הורד Excel" כדי להוריד את הקובץ.
-          </Typography>
-        </Paper>
+        <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center shadow-sm" style={{ boxShadow: '0 1px 8px rgba(0,0,0,0.04)' }}>
+          <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-gray-800 mb-2">הדוח מוכן</h3>
+          <p className="text-sm text-gray-500 mb-4">הדוח נוצר בהצלחה ומוכן להורדה</p>
+          <button
+            onClick={handleDownload}
+            className="px-6 py-2.5 bg-gradient-to-l from-blue-600 to-blue-500 text-white text-sm font-semibold rounded-xl hover:from-blue-700 hover:to-blue-600 transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2 mx-auto"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            הורד קובץ Excel
+          </button>
+        </div>
       )}
 
       <ConflictResolutionModal
@@ -320,7 +329,7 @@ const ReportsTab = () => {
         onResolve={handleConflictResolve}
         onCancel={() => setConflictModalOpen(false)}
       />
-    </Box>
+    </div>
   )
 }
 

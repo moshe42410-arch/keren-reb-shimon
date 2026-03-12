@@ -5,6 +5,7 @@ import SupportsManagementTab from '../components/maorot/SupportsManagementTab'
 import SupportsGeneratorTab from '../components/maorot/SupportsGeneratorTab'
 import ReturnUploadTab from '../components/maorot/ReturnUploadTab'
 import MovementsBoardTab from '../components/maorot/MovementsBoardTab'
+import CategoriesManagementTab from '../components/maorot/CategoriesManagementTab'
 import MaorotSidebar from '../components/maorot/MaorotSidebar'
 
 const tabs = [
@@ -12,6 +13,7 @@ const tabs = [
   { id: 'movements-board', label: 'לוח תנועות' },
   { id: 'directory', label: 'אלפון נתמכים' },
   { id: 'supports', label: 'ניהול תמיכות' },
+  { id: 'categories', label: 'ניהול קטגוריות' },
   { id: 'generator', label: 'מחולל תמיכות' },
 ]
 
@@ -81,6 +83,7 @@ const MaorotPage = () => {
               supportsHeaders={maorotData.supportsHeaders}
               supportsColumnMapping={maorotData.supportsColumnMapping}
               directoryEntries={maorotData.directoryEntries}
+              categories={maorotData.categories || []}
               onSupportsChange={(entries) =>
                 setMaorotData((prev) => ({ ...prev, supports: entries }))
               }
@@ -94,6 +97,8 @@ const MaorotPage = () => {
               }
             />
           )}
+
+          {activeTab === 'categories' && <CategoriesManagementTab />}
 
           {activeTab === 'generator' && (
             <SupportsGeneratorTab

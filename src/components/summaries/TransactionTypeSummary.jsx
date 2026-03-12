@@ -87,7 +87,7 @@ const TransactionTypeSummary = ({ summary }) => {
             <YAxis />
             <Tooltip />
             <Legend />
-            <Bar dataKey="סכום" fill="#8884d8" />
+            <Bar dataKey="סכום" fill="#0891b2" />
             <Bar dataKey="כמות" fill="#82ca9d" />
           </BarChart>
         </ResponsiveContainer>

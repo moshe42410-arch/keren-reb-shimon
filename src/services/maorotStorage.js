@@ -29,6 +29,7 @@ const defaultData = {
     month: 'חודש',
   },
   autoGenerateSupportRequests: true,
+  categories: [], // [{ id, frame, category }]
 }
 
 export const loadMaorotData = () => {

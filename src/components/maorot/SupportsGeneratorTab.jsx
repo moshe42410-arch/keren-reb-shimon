@@ -58,6 +58,8 @@ const SupportsGeneratorTab = ({
   const [lastExportedRows, setLastExportedRows] = useState([])
   const [lastExportedMonthKey, setLastExportedMonthKey] = useState('')
   const [validationError, setValidationError] = useState('')
+  const [showOverwriteWarning, setShowOverwriteWarning] = useState(false)
+  const [pendingGenerateAction, setPendingGenerateAction] = useState(null)
 
   const normalizeId = (value) => normalizeString(value).replace(/\D/g, '')
 
@@ -389,13 +391,27 @@ const SupportsGeneratorTab = ({
     onExtraSupportsChange(remainingExtras)
   }
 
-  const handleGenerate = async () => {
+  // בדיקה אם כבר הופק קובץ לחודש זה
+  const isMonthAlreadyExported = useMemo(() => {
+    if (!exportLog || exportLog.length === 0) return false
+    return exportLog.some((log) => log.month === monthKey && log.type === 'monthly')
+  }, [exportLog, monthKey])
+
+  const handleGenerate = async (forceGenerate = false) => {
     setError('')
     if (!monthKey) {
       setError('אנא בחר חודש להפקה.')
       return
     }
-    const entriesToExport = supportsNotExportedThisMonth
+
+    // אם כבר הופק קובץ לחודש זה ולא אישרו - מציג אזהרה
+    if (isMonthAlreadyExported && !forceGenerate) {
+      setPendingGenerateAction('monthly')
+      setShowOverwriteWarning(true)
+      return
+    }
+
+    const entriesToExport = supportsEligibleForMonth // משתמש בכל התמיכות הזכאיות, לא רק אלו שלא יוצאו
     if (!supportsHeaders || supportsHeaders.length < 15) {
       setError('חסר מבנה עמודות תקין (A-G, M-O) מקובץ מפורט.')
       return
@@ -422,7 +438,22 @@ const SupportsGeneratorTab = ({
     }
   }
 
-  const handleGenerateDifferential = () => {
+  const handleConfirmOverwrite = async () => {
+    setShowOverwriteWarning(false)
+    if (pendingGenerateAction === 'monthly') {
+      await handleGenerate(true)
+    } else if (pendingGenerateAction === 'diff') {
+      handleGenerateDifferential(true)
+    }
+    setPendingGenerateAction(null)
+  }
+
+  const handleCancelOverwrite = () => {
+    setShowOverwriteWarning(false)
+    setPendingGenerateAction(null)
+  }
+
+  const handleGenerateDifferential = (forceGenerate = false) => {
     setError('')
     if (!monthKey) {
       setError('אנא בחר חודש להפקה.')
@@ -505,14 +536,14 @@ const SupportsGeneratorTab = ({
             />
             <button
               type="button"
-              onClick={handleGenerate}
+              onClick={() => handleGenerate(false)}
               className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors"
             >
               הפקת קובץ תמיכות
             </button>
             <button
               type="button"
-              onClick={handleGenerateDifferential}
+              onClick={() => handleGenerateDifferential(false)}
               className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
             >
               הורדה דיפרנציאלית
@@ -544,6 +575,36 @@ const SupportsGeneratorTab = ({
       </div>
 
       {/* הוספת תמיכות ידנית הועברה ללשונית ניהול תמיכות */}
+
+      {/* דיאלוג אזהרה על הפקה חוזרת */}
+      {showOverwriteWarning && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-orange-600 mb-4">⚠️ אזהרה - קובץ כבר הופק</h3>
+            <p className="text-gray-700 mb-6">
+              כבר הופק קובץ תמיכות לחודש {monthKey}. 
+              <br /><br />
+              האם אתה בטוח שברצונך ליצור קובץ חדש? פעולה זו עלולה לגרום לכפילויות.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={handleCancelOverwrite}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors"
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmOverwrite}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700 transition-colors"
+              >
+                הפק בכל זאת
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

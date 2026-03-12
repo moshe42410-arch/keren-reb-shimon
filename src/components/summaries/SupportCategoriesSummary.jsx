@@ -33,7 +33,7 @@ const SupportCategoriesSummary = () => {
   const [selectedRow, setSelectedRow] = useState(null)
   const [categoryInput, setCategoryInput] = useState('')
   
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658']
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#0891b2', '#82ca9d', '#ffc658']
 
   useEffect(() => {
     if (processedData && googleSheetsId) {
@@ -298,7 +298,7 @@ const SupportCategoriesSummary = () => {
                 labelLine={false}
                 label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                 outerRadius={120}
-                fill="#8884d8"
+                fill="#0891b2"
                 dataKey="value"
               >
                 {chartData.map((entry, index) => (

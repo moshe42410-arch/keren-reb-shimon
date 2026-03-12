@@ -42,128 +42,123 @@ const TopNavigation = () => {
       path: '/summaries',
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h18m-18 6h18m-18 6h18" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
         </svg>
       )
     },
   ]
 
   const isActive = (path) => {
-    if (path === '/charity') {
-      return location.pathname.startsWith('/charity')
-    }
+    if (path === '/charity') return location.pathname.startsWith('/charity')
     return location.pathname === path
   }
 
   const handleLogoClick = () => {
-    // רענון מלא (Hard Refresh) לדף הבית
     window.location.href = '/'
   }
 
   return (
-    <nav className="bg-white/70 shadow-lg border-b border-white/60 sticky top-0 z-50 backdrop-blur-xl">
-      <div className="max-w-[90rem] mx-auto px-8 sm:px-10 lg:px-12">
-        <div className="flex justify-between items-center h-24">
-          {/* Logo בצד שמאל - עם פונקציונליות רענון */}
+    <nav className="bg-white border-b border-gray-100 sticky top-0 z-50" style={{ boxShadow: '0 1px 12px rgba(0,0,0,0.04)' }}>
+      <div className="max-w-[90rem] mx-auto px-6 sm:px-8 lg:px-10">
+        <div className="flex justify-between items-center h-20">
+          
+          {/* Logo בצד שמאל */}
           <div className="flex items-center">
             <button
               onClick={handleLogoClick}
-              className="flex items-center cursor-pointer hover:opacity-80 transition-opacity duration-200 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 rounded-md p-1"
+              className="flex items-center cursor-pointer hover:opacity-80 transition-opacity duration-200 focus:outline-none rounded-md p-1"
               aria-label="רענון לדף הבית"
             >
               <img
                 src="/לוגו.png"
                 alt="לוגו"
-                className="h-16 w-auto object-contain"
-                onError={(e) => {
-                  e.target.style.display = 'none'
-                }}
+                className="h-14 w-auto object-contain"
+                onError={(e) => { e.target.style.display = 'none' }}
               />
             </button>
           </div>
 
-          {/* Tabs באמצע - עיצוב פיננסי מודרני */}
-          <div className="flex space-x-4 space-x-reverse mt-2">
-            {tabs.map((tab) => (
-              <Link
-                key={tab.path}
-                to={tab.path}
-                className={`
-                  relative flex items-center gap-2 px-7 py-3.5 text-lg font-semibold rounded-xl
-                  transition-all duration-300 ease-in-out
-                  ${
-                    isActive(tab.path)
-                      ? 'bg-gradient-to-r from-blue-50 to-green-50 text-blue-700 shadow-md border border-blue-200'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:shadow-sm'
-                  }
-                  ${!isActive(tab.path) && 'hover:scale-[1.02]'}
-                `}
-              >
-                {tab.useImage && !charityLogoError ? (
-                  <img 
-                    src={tab.imageSrc} 
-                    alt={tab.name} 
-                    className="w-5 h-5 object-contain rounded"
-                    onError={() => {
-                      setCharityLogoError(true)
-                    }}
-                  />
-                ) : (
-                  <span className={`transition-transform duration-300 ${isActive(tab.path) ? 'text-blue-600' : 'text-gray-500'}`}>
-                    {tab.icon}
-                  </span>
-                )}
-                <span className="font-sans">{tab.name}</span>
-                {isActive(tab.path) && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-600 to-green-600 rounded-full"></span>
-                )}
-              </Link>
-            ))}
+          {/* Tabs באמצע */}
+          <div className="flex items-center gap-2">
+            {tabs.map((tab) => {
+              const active = isActive(tab.path)
+              return (
+                <Link
+                  key={tab.path}
+                  to={tab.path}
+                  className={`
+                    relative flex items-center gap-2.5 px-6 py-2.5 text-sm font-semibold rounded-xl
+                    transition-all duration-200
+                    ${active
+                      ? 'bg-teal-50 text-teal-700 shadow-sm ring-1 ring-teal-200/50'
+                      : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  {tab.useImage && !charityLogoError ? (
+                    <img 
+                      src={tab.imageSrc} 
+                      alt={tab.name} 
+                      className="w-5 h-5 object-contain rounded"
+                      onError={() => setCharityLogoError(true)}
+                    />
+                  ) : (
+                    <span className={active ? 'text-teal-600' : 'text-gray-400'}>
+                      {tab.icon}
+                    </span>
+                  )}
+                  <span>{tab.name}</span>
+                  {active && (
+                    <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-teal-500 rounded-full" />
+                  )}
+                </Link>
+              )
+            })}
           </div>
 
-          {/* Finance בצד ימין - עיצוב יוקרתי בנקאי מודרני */}
-          <div className="flex items-center gap-10">
+          {/* Right Side */}
+          <div className="flex items-center gap-6">
+            {/* FINANCE Brand */}
             <div className="flex flex-col items-end">
               <span 
-                className="text-[2.6rem] font-extrabold bg-gradient-to-r from-indigo-700 via-blue-700 to-indigo-800 bg-clip-text text-transparent"
+                className="text-2xl font-black tracking-wider"
                 style={{
-                  fontFamily: 'Arial, sans-serif',
-                  letterSpacing: '0.15em',
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  letterSpacing: '0.12em',
                   textTransform: 'uppercase',
-                  fontWeight: 900,
-                  background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #1e3a8a 100%)',
+                  background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
-                  textShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  lineHeight: '1.2'
                 }}
               >
                 FINANCE
               </span>
-              <span className="text-sm text-gray-600 mt-0.5 font-medium" dir="rtl">
+              <span className="text-[11px] text-gray-400 font-medium -mt-0.5" dir="rtl">
                 תוכנה לניהול כספים
               </span>
             </div>
+
+            {/* User */}
             {currentUser && (
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-500 via-indigo-600 to-blue-800 blur-[6px] opacity-40" />
-                  <div className="relative flex items-center justify-center w-11 h-11 rounded-full bg-gradient-to-br from-blue-700 via-indigo-700 to-blue-900 text-white shadow-lg ring-2 ring-white/80">
-                    <span className="text-sm font-bold tracking-wide">{getInitials()}</span>
-                  </div>
+              <div className="flex items-center gap-3">
+                {/* Avatar */}
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white shadow-md shadow-teal-500/20">
+                  <span className="text-xs font-bold tracking-wide">{getInitials()}</span>
                 </div>
-                <div className="flex flex-col items-end gap-1 rounded-2xl border border-white/60 bg-white/70 px-4 py-2 shadow-md backdrop-blur">
+                
+                {/* Info */}
+                <div className="flex flex-col items-end">
                   <span className="text-sm font-semibold text-gray-800" dir="rtl">
                     {`${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.username}
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500" dir="rtl">
+                    <span className="text-[11px] text-gray-400" dir="rtl">
                       {currentUser.role === 'admin' ? 'מנהל' : 'משתמש'}
                     </span>
-                    <span className="text-gray-300">|</span>
+                    <span className="text-gray-200">|</span>
                     <button
                       onClick={logout}
-                      className="text-xs text-red-600 hover:text-red-700 font-semibold"
+                      className="text-[11px] text-red-500 hover:text-red-600 font-medium transition-colors"
                     >
                       התנתק
                     </button>

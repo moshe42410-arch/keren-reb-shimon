@@ -62,7 +62,7 @@ const SummaryTabs = () => {
       <Box sx={{ 
         borderBottom: 2, 
         borderColor: 'divider',
-        background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+        background: 'linear-gradient(135deg, rgba(8, 145, 178, 0.1) 0%, rgba(14, 116, 144, 0.1) 100%)',
       }}>
         <Tabs 
           value={tabValue} 
@@ -73,12 +73,12 @@ const SummaryTabs = () => {
               fontSize: '1rem',
               color: '#666',
               '&.Mui-selected': {
-                color: '#667eea',
+                color: '#0891b2',
                 fontWeight: 700,
               },
             },
             '& .MuiTabs-indicator': {
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: 'linear-gradient(135deg, #0891b2 0%, #0e7490 100%)',
               height: 3,
               borderRadius: '3px 3px 0 0',
             },

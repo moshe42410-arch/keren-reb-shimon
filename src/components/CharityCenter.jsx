@@ -5,7 +5,6 @@ import Box from '@mui/material/Box'
 import SummariesTab from './charity/SummariesTab'
 import ReportsTab from './charity/ReportsTab'
 import FileUploader from './FileUploader'
-import Typography from '@mui/material/Typography'
 
 function TabPanel({ children, value, index }) {
   return (
@@ -23,21 +22,41 @@ const CharityCenter = () => {
   }
 
   return (
-    <Box sx={{ width: '100%', p: 3 }}>
-      {/* File Uploader */}
-      <Box sx={{ mb: 4 }}>
+    <Box
+      sx={{
+        width: '100%',
+        maxWidth: 1360,
+        mx: 'auto',
+        p: { xs: 2, md: 3 },
+      }}
+    >
+      {/* File Uploader Card */}
+      <Box
+        sx={{
+          backgroundColor: '#ffffff',
+          border: '1px solid #e5e7eb',
+          borderRadius: '16px',
+          p: { xs: 2, md: 3 },
+          mb: 3,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        }}
+      >
         <FileUploader />
       </Box>
 
       {/* Calculator Image */}
-      <Box 
-        sx={{ 
-          textAlign: 'center', 
-          mb: 4,
+      <Box
+        sx={{
+          textAlign: 'center',
+          mb: 3,
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          py: 3,
+          py: { xs: 1.5, md: 2 },
+          backgroundColor: '#ffffff',
+          border: '1px solid #e5e7eb',
+          borderRadius: '16px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         }}
       >
         <Box
@@ -45,64 +64,72 @@ const CharityCenter = () => {
           src="/מחשבון.png"
           alt="מחשבון"
           sx={{
-            maxWidth: { xs: '250px', md: '400px' },
+            maxWidth: { xs: '220px', md: '340px' },
             width: '100%',
             height: 'auto',
-            filter: 'drop-shadow(0 10px 30px rgba(76, 175, 80, 0.3))',
-            animation: 'float 3s ease-in-out infinite',
-            '@keyframes float': {
-              '0%, 100%': {
-                transform: 'translateY(0px)',
-              },
-              '50%': {
-                transform: 'translateY(-20px)',
-              },
-            },
+            filter: 'drop-shadow(0 8px 22px rgba(13, 148, 136, 0.15))',
           }}
           onError={(e) => {
-            console.warn('Calculator image not found, trying alternative path');
-            e.target.src = '/calculator.png';
+            console.warn('Calculator image not found, trying alternative path')
+            e.target.src = '/calculator.png'
           }}
         />
       </Box>
 
-      {/* Sub Tabs */}
-      <Box sx={{ 
-        borderBottom: 2, 
-        borderColor: '#e8f5e9',
-        background: 'rgba(255, 255, 255, 0.95)',
-        borderRadius: '12px 12px 0 0',
-      }}>
-        <Tabs 
-          value={tabValue} 
-          onChange={handleTabChange}
-          sx={{
-            '& .MuiTab-root': {
-              fontWeight: 600,
-              fontSize: '1rem',
-              color: '#666',
-              textTransform: 'none',
-              '&.Mui-selected': {
-                color: '#4caf50',
-                fontWeight: 700,
+      {/* Tabs Card (Sure style) */}
+      <Box
+        sx={{
+          backgroundColor: '#ffffff',
+          border: '1px solid #e5e7eb',
+          borderRadius: '16px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          overflow: 'hidden',
+        }}
+      >
+        <Box sx={{ px: { xs: 1.5, md: 2 }, pt: 0.5 }}>
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
+            sx={{
+              minHeight: 48,
+              '& .MuiTab-root': {
+                minHeight: 48,
+                fontWeight: 600,
+                fontSize: '0.88rem',
+                color: '#6b7280',
+                textTransform: 'none',
+                borderRadius: '10px 10px 0 0',
+                transition: 'color 0.15s ease',
+                px: 3,
+                '&:hover': {
+                  color: '#0f766e',
+                  backgroundColor: '#f0fdfa',
+                },
+                '&.Mui-selected': {
+                  color: '#0d9488',
+                  fontWeight: 700,
+                },
               },
-            },
-            '& .MuiTabs-indicator': {
-              background: '#4caf50',
-              height: 3,
-              borderRadius: '3px 3px 0 0',
-            },
-          }}
-        >
-          <Tab label="סיכומים" />
-          <Tab label="דוחות" />
-        </Tabs>
+              '& .MuiTabs-indicator': {
+                backgroundColor: '#0d9488',
+                height: 2.5,
+                borderRadius: '2px 2px 0 0',
+              },
+            }}
+          >
+            <Tab label="סיכומים" />
+            <Tab label="דוחות" />
+          </Tabs>
+        </Box>
+
+        {/* Thin separator */}
+        <Box sx={{ height: '1px', backgroundColor: '#f3f4f6' }} />
       </Box>
-      
+
       <TabPanel value={tabValue} index={0}>
         <SummariesTab />
       </TabPanel>
-      
+
       <TabPanel value={tabValue} index={1}>
         <ReportsTab />
       </TabPanel>
